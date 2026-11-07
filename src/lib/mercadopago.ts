@@ -68,12 +68,12 @@ export async function createMercadoPagoPreference(
   const token = settings?.access_token?.trim();
   const isSandbox = settings?.sandbox ?? true;
 
-  // Monta URLs de retorno para o Portal do Cliente
-  const currentUrl = window.location.origin + window.location.pathname;
+  // Monta URLs de retorno para o Portal do Cliente e Acompanhamento
+  const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
   const backUrls = {
-    success: `${currentUrl}?mp_status=approved&token=${os.public_tracking_token}`,
-    pending: `${currentUrl}?mp_status=pending&token=${os.public_tracking_token}`,
-    failure: `${currentUrl}?mp_status=failure&token=${os.public_tracking_token}`,
+    success: `${baseUrl}/#/acompanhar/${os.public_tracking_token}?mp_status=approved`,
+    pending: `${baseUrl}/#/acompanhar/${os.public_tracking_token}?mp_status=pending`,
+    failure: `${baseUrl}/#/acompanhar/${os.public_tracking_token}?mp_status=failure`,
   };
 
   const amount = Number(os.total_amount) || 0;
@@ -119,9 +119,9 @@ export async function createMercadoPagoPreference(
         },
       };
 
-      if (settings?.notification_url) {
-        payload.notification_url = settings.notification_url;
-      }
+      payload.notification_url = (settings?.notification_url && settings.notification_url.trim())
+        ? settings.notification_url.trim()
+        : `${baseUrl}/?webhook=mercadopago`;
 
       const res = await fetch('https://api.mercadopago.com/checkout/preferences', {
         method: 'POST',

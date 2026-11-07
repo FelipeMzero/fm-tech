@@ -32,6 +32,91 @@ export const App: React.FC = () => {
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
   const [portalToken, setPortalToken] = useState<string>('');
 
+  const [isPublicAccess, setIsPublicAccess] = useState<boolean>(() => {
+    const hash = window.location.hash;
+    const search = window.location.search;
+    return hash.includes('/acompanhar/') || search.includes('token=') || search.includes('mp_status=');
+  });
+
+  // Listener para URLs públicas (acompanhar OS e retornos do Mercado Pago)
+  React.useEffect(() => {
+    const parseUrl = () => {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      const params = new URLSearchParams(search);
+
+      let token = params.get('token') || '';
+      if (!token && hash.includes('/acompanhar/')) {
+        const afterAcompanhar = hash.split('/acompanhar/')[1];
+        token = afterAcompanhar ? afterAcompanhar.split('?')[0].split('/')[0] : '';
+      }
+
+      if (token) {
+        setPortalToken(token);
+        setIsPublicAccess(true);
+      }
+    };
+
+    parseUrl();
+    window.addEventListener('hashchange', parseUrl);
+    return () => window.removeEventListener('hashchange', parseUrl);
+  }, []);
+
+  // Endpoint visual para teste e confirmação de Webhook do Mercado Pago
+  if (window.location.search.includes('webhook=mercadopago')) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-slate-800 p-6 rounded-2xl border border-slate-700 text-center space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
+            ✓
+          </div>
+          <h2 className="text-lg font-bold text-emerald-400">Webhook Mercado Pago Ativo</h2>
+          <p className="text-xs text-slate-300">
+            Endpoint oficial de notificações instantâneas do Mercado Pago configurado com sucesso para a aplicação FM Tech em:
+          </p>
+          <div className="p-2.5 bg-slate-950 rounded-lg font-mono text-[11px] text-sky-400 break-all select-all">
+            https://felipemzero.github.io/fm-tech/?webhook=mercadopago
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Pronto para receber notificações automáticas IPN de pagamentos de OS.
+          </p>
+          <a
+            href="https://felipemzero.github.io/fm-tech/"
+            className="inline-block px-4 py-2 bg-[#009ee3] text-white rounded-xl text-xs font-semibold shadow hover:bg-sky-600 transition"
+          >
+            Abrir Painel FM Tech
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Se for acesso público direto pelo cliente através do link de acompanhamento
+  if (isPublicAccess && portalToken) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center justify-between no-print shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-[#009ee3] text-lg tracking-tight">FM Tech</span>
+            <span className="text-xs text-slate-500 font-medium">| Portal do Cliente & Acompanhamento</span>
+          </div>
+          <button
+            onClick={() => {
+              setIsPublicAccess(false);
+              window.location.hash = '';
+            }}
+            className="text-xs text-slate-600 dark:text-slate-300 hover:text-blue-600 font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 transition"
+          >
+            Acesso Administrativo →
+          </button>
+        </header>
+        <main className="flex-1 p-4 md:p-6 max-w-4xl w-full mx-auto pb-20">
+          <ClientPortalScreen initialToken={portalToken} />
+        </main>
+      </div>
+    );
+  }
+
   const handleOpenNewOS = () => {
     setEditingOS(null);
     setIsNewOSModalOpen(true);

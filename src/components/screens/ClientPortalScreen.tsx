@@ -75,11 +75,18 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialT
   }, [currentOS, issuer]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('mp_status') === 'approved' && currentOS) {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = window.location.hash.includes('?')
+      ? new URLSearchParams(window.location.hash.split('?')[1])
+      : new URLSearchParams();
+    
+    const isApproved = searchParams.get('mp_status') === 'approved' || hashParams.get('mp_status') === 'approved';
+    const paymentId = searchParams.get('payment_id') || hashParams.get('payment_id') || searchParams.get('collection_id') || hashParams.get('collection_id');
+
+    if (isApproved && currentOS) {
       setMpSuccessNotice(true);
       if (currentOS.status !== 'finalizado') {
-        confirmMercadoPagoPayment(currentOS.id, params.get('payment_id') || undefined, 'pix');
+        confirmMercadoPagoPayment(currentOS.id, paymentId || undefined, 'pix');
       }
     }
   }, [currentOS]);

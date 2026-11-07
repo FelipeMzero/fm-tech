@@ -737,5 +737,5 @@ export const initialMercadoPagoSettings: MercadoPagoSettings = {
   statement_descriptor: 'FM TECH',
   max_installments: 12,
   auto_return: 'approved',
-  notification_url: '',
+  notification_url: 'https://felipemzero.github.io/fm-tech/?webhook=mercadopago',
 };

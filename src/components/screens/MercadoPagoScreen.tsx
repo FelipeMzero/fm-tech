@@ -36,7 +36,12 @@ export const MercadoPagoScreen: React.FC = () => {
     addAuditLog
   } = useAppStore();
 
-  const [form, setForm] = useState(mercadoPago);
+  const DEFAULT_FMTECH_WEBHOOK = 'https://felipemzero.github.io/fm-tech/?webhook=mercadopago';
+
+  const [form, setForm] = useState(() => ({
+    ...mercadoPago,
+    notification_url: mercadoPago.notification_url || DEFAULT_FMTECH_WEBHOOK,
+  }));
   const [showToken, setShowToken] = useState(false);
   const [showPublicKey, setShowPublicKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,6 +56,15 @@ export const MercadoPagoScreen: React.FC = () => {
 
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Webhook Test & Simulation
+  const [webhookTesting, setWebhookTesting] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{
+    success: boolean;
+    message: string;
+    paymentId?: string;
+    payload?: any;
+  } | null>(null);
 
   // Simulador de Checkout Pro
   const [selectedOSId, setSelectedOSId] = useState<string>(() => {
@@ -97,10 +111,14 @@ export const MercadoPagoScreen: React.FC = () => {
   };
 
   const handleCopyWebhookUrl = () => {
-    const url = form.notification_url || `${window.location.origin}/api/mercadopago/webhook`;
+    const url = form.notification_url || DEFAULT_FMTECH_WEBHOOK;
     navigator.clipboard.writeText(url);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const handleResetWebhookUrl = () => {
+    setForm(prev => ({ ...prev, notification_url: DEFAULT_FMTECH_WEBHOOK }));
   };
 
   const selectedOS = serviceOrders.find(o => o.id === selectedOSId);
@@ -122,10 +140,33 @@ export const MercadoPagoScreen: React.FC = () => {
     }
   };
 
-  const handleSimulateApprovedPayment = () => {
-    if (!selectedOSId) return;
-    confirmMercadoPagoPayment(selectedOSId, `SIM_MP_${Date.now()}`, 'pix');
-    alert(`Pagamento da OS #${selectedOS?.os_number} aprovado com sucesso! A OS foi finalizada e lançada no Financeiro.`);
+  const handleSimulateWebhook = () => {
+    if (!selectedOSId || !selectedOS) return;
+    setWebhookTesting(true);
+    const paymentId = 'mp_webhook_' + Math.floor(1000000000 + Math.random() * 9000000000);
+    const mockPayload = {
+      id: paymentId,
+      live_mode: !form.sandbox,
+      type: 'payment',
+      date_created: new Date().toISOString(),
+      user_id: 123456789,
+      action: 'payment.created',
+      data: { id: paymentId },
+      external_reference: `os_${selectedOS.id}_num_${selectedOS.os_number}`,
+      amount: selectedOS.total_amount,
+      status: 'approved',
+    };
+
+    setTimeout(() => {
+      confirmMercadoPagoPayment(selectedOSId, paymentId, 'pix');
+      setWebhookTestResult({
+        success: true,
+        message: `Webhook processado com sucesso! Pagamento ${paymentId} confirmado e OS #${selectedOS.os_number} faturada automaticamente.`,
+        paymentId,
+        payload: mockPayload,
+      });
+      setWebhookTesting(false);
+    }, 500);
   };
 
   const ordersWithMP = serviceOrders.filter(o => o.mp_payment_url || o.mp_payment_status || o.invoiced);
@@ -356,16 +397,24 @@ export const MercadoPagoScreen: React.FC = () => {
 
             {/* URL de Notificação IPN / Webhook */}
             <div>
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between mb-1.5">
-                <span>URL de Notificação Instantânea (Webhook / IPN)</span>
-                <span className="text-xs text-sky-600 dark:text-sky-400 font-normal">Auto-baixa de pagamentos</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  URL de Notificação Instantânea (Webhook / IPN)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleResetWebhookUrl}
+                  className="text-xs text-sky-600 dark:text-sky-400 hover:underline font-medium"
+                >
+                  Restaurar URL Padrão FM Tech
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="text"
                   value={form.notification_url}
                   onChange={(e) => setForm({ ...form, notification_url: e.target.value })}
-                  placeholder="https://seu-dominio.com.br/api/mercadopago/webhook"
+                  placeholder="https://felipemzero.github.io/fm-tech/?webhook=mercadopago"
                   className="w-full px-3.5 py-2.5 pr-24 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs font-mono focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
                 />
                 <button
@@ -377,6 +426,9 @@ export const MercadoPagoScreen: React.FC = () => {
                   {copiedUrl ? 'Copiado!' : 'Copiar'}
                 </button>
               </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                URL oficial configurada para sua aplicação: <strong className="text-sky-600 dark:text-sky-400">https://felipemzero.github.io/fm-tech/?webhook=mercadopago</strong>
+              </p>
             </div>
 
             {/* Submit Bar */}
@@ -521,14 +573,40 @@ export const MercadoPagoScreen: React.FC = () => {
 
               <button
                 type="button"
-                onClick={handleSimulateApprovedPayment}
-                disabled={!selectedOS}
+                onClick={handleSimulateWebhook}
+                disabled={webhookTesting || !selectedOS}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm disabled:opacity-50 transition"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                Simular Pagamento Aprovado (IPN)
+                <CheckCircle2 className={`w-4 h-4 ${webhookTesting ? 'animate-spin' : ''}`} />
+                {webhookTesting ? 'Processando Webhook...' : 'Disparar Teste de Webhook (IPN)'}
               </button>
             </div>
+
+            {/* Resultado do Teste de Webhook */}
+            {webhookTestResult && (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100 text-xs space-y-2 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Status: 200 OK • Notificação Recebida
+                  </span>
+                  <span className="font-mono text-[10px] bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 px-2 py-0.5 rounded font-bold">
+                    {webhookTestResult.paymentId}
+                  </span>
+                </div>
+                <p className="text-emerald-800 dark:text-emerald-200">
+                  {webhookTestResult.message}
+                </p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline">
+                    Ver payload JSON recebido do Mercado Pago
+                  </summary>
+                  <pre className="mt-2 p-2.5 bg-slate-900 text-emerald-400 rounded-lg text-[10px] font-mono overflow-x-auto max-h-36">
+                    {JSON.stringify(webhookTestResult.payload, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
           </div>
 
           {/* Resultado do Link Gerado */}

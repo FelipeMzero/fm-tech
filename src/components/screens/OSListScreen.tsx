@@ -98,7 +98,8 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
   const handleShareWhatsApp = (os: ServiceOrder) => {
     const client = clients.find(c => c.id === os.client_id);
     const cleanPhone = (client?.whatsapp || client?.phone || '').replace(/\D/g, '');
-    const trackingUrl = `${window.location.origin}/#/acompanhar/${os.public_tracking_token}`;
+    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+    const trackingUrl = `${baseUrl}/#/acompanhar/${os.public_tracking_token}`;
 
     const text = encodeURIComponent(
       `Olá ${client?.name || 'Cliente'}!\n` +
