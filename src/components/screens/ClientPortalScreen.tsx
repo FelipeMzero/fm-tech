@@ -198,22 +198,45 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialT
 
           {/* Conteúdo Principal */}
           <div className="p-6 sm:p-8 space-y-6">
-            {/* Box Equipamento e Cliente */}
+            {/* Box Equipamento ou Licença Digital e Cliente */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
               <div className="space-y-1">
-                <span className="font-bold text-slate-500 uppercase text-[10px]">Equipamento em Manutenção</span>
-                <div className="text-sm font-bold text-slate-900 dark:text-white">
-                  {currentOS.equipment_type} - {currentOS.brand} {currentOS.model}
-                </div>
-                {currentOS.serial_imei && (
-                  <p className="text-slate-600 dark:text-slate-400 font-mono">
-                    Nº de Série/IMEI: {currentOS.serial_imei}
-                  </p>
-                )}
-                {currentOS.accessories_left && (
-                  <p className="text-slate-500">
-                    Acessórios deixados: {currentOS.accessories_left}
-                  </p>
+                {currentOS.os_type === 'licenca_digital' ? (
+                  <>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5" /> Licença Digital & Software
+                    </span>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">
+                      {currentOS.digital_service_details?.product_name || currentOS.equipment_type}
+                    </div>
+                    {currentOS.digital_service_details?.target_device && (
+                      <p className="text-slate-600 dark:text-slate-400">
+                        Dispositivo: <strong>{currentOS.digital_service_details.target_device}</strong>
+                      </p>
+                    )}
+                    {currentOS.digital_service_details?.customer_email && (
+                      <p className="text-slate-500">
+                        Conta: {currentOS.digital_service_details.customer_email}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="font-bold text-slate-500 uppercase text-[10px]">Equipamento em Manutenção</span>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">
+                      {currentOS.equipment_type} - {currentOS.brand} {currentOS.model}
+                    </div>
+                    {currentOS.serial_imei && (
+                      <p className="text-slate-600 dark:text-slate-400 font-mono">
+                        Nº de Série/IMEI: {currentOS.serial_imei}
+                      </p>
+                    )}
+                    {currentOS.accessories_left && (
+                      <p className="text-slate-500">
+                        Acessórios deixados: {currentOS.accessories_left}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 

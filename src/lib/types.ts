@@ -193,9 +193,23 @@ export interface PhysicalConditionChecklist {
   outros_detalhes?: string;
 }
 
+export type OSType = 'manutencao' | 'licenca_digital' | 'hibrido';
+
+export interface DigitalServiceDetails {
+  product_name?: string;
+  license_id?: string;
+  license_key?: string;
+  customer_email?: string;
+  target_device?: string; // ex: "PC Escritório", "Notebook Dell"
+  delivery_method?: 'whatsapp' | 'email' | 'remoto' | 'balcao';
+  activation_instructions?: string;
+}
+
 export interface ServiceOrder {
   id: string;
   os_number: number;
+  os_type?: OSType;
+  digital_service_details?: DigitalServiceDetails;
   public_tracking_token: string;
   client_id: string;
   client?: Client;

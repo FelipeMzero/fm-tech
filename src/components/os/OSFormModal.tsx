@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { 
   ServiceOrder, 
   OSStatus, 
+  OSType,
+  DigitalServiceDetails,
   DiscountType, 
   OSServiceItem, 
   OSProductItem, 
@@ -40,7 +42,9 @@ import {
   AlertCircle,
   KeyRound,
   Copy,
-  Check
+  Check,
+  Layers,
+  Laptop
 } from 'lucide-react';
 
 interface OSFormModalProps {
@@ -64,6 +68,20 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<'geral' | 'laudos' | 'servicos' | 'produtos' | 'licencas' | 'anexos' | 'totais'>('geral');
+
+  // Tipo de Atendimento / OS
+  const [osType, setOsType] = useState<OSType>(osToEdit?.os_type || 'manutencao');
+
+  // Dados específicos de Licença Digital
+  const [digitalDetails, setDigitalDetails] = useState<DigitalServiceDetails>({
+    product_name: osToEdit?.digital_service_details?.product_name || '',
+    license_id: osToEdit?.digital_service_details?.license_id || '',
+    license_key: osToEdit?.digital_service_details?.license_key || '',
+    customer_email: osToEdit?.digital_service_details?.customer_email || '',
+    target_device: osToEdit?.digital_service_details?.target_device || '',
+    delivery_method: osToEdit?.digital_service_details?.delivery_method || 'whatsapp',
+    activation_instructions: osToEdit?.digital_service_details?.activation_instructions || '',
+  });
 
   // Dados do formulário da OS
   const [clientId, setClientId] = useState<string>(osToEdit?.client_id || (clients[0]?.id || ''));
@@ -347,7 +365,15 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
       alert('Por favor selecione ou cadastre um cliente.');
       return;
     }
-    if (!reportedDefect) {
+    const isDigitalOnly = osType === 'licenca_digital';
+    const finalEquipment = isDigitalOnly 
+      ? (digitalDetails.target_device || digitalDetails.product_name || 'Licença Digital')
+      : equipmentType;
+    const finalDefect = isDigitalOnly
+      ? (reportedDefect || `Ativação e Entrega: ${digitalDetails.product_name || 'Produto Digital'}`)
+      : reportedDefect;
+
+    if (!isDigitalOnly && !reportedDefect) {
       alert('Por favor informe o defeito relatado pelo cliente.');
       return;
     }
@@ -355,16 +381,18 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
     const payload: Partial<ServiceOrder> = {
       client_id: clientId,
       status,
+      os_type: osType,
+      digital_service_details: digitalDetails,
       technician_name: technicianName,
       warranty_term_id: warrantyTermId,
-      equipment_type: equipmentType,
-      brand,
-      model,
-      serial_imei: serialImei,
+      equipment_type: finalEquipment,
+      brand: isDigitalOnly ? (digitalDetails.product_name || 'Digital') : brand,
+      model: isDigitalOnly ? 'Digital Key' : model,
+      serial_imei: isDigitalOnly ? (digitalDetails.license_key || '') : serialImei,
       unlock_password: unlockPassword,
       accessories_left: accessoriesLeft,
-      physical_condition_checklist: checklist,
-      reported_defect: reportedDefect,
+      physical_condition_checklist: isDigitalOnly ? {} : checklist,
+      reported_defect: finalDefect,
       technical_report: technicalReport,
       solution_applied: solutionApplied,
       internal_observations: internalObservations,
@@ -421,15 +449,24 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
 
         {/* Abas */}
         <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 gap-2 bg-slate-50 dark:bg-slate-900/50 text-xs font-semibold overflow-x-auto">
-          {[
-            { id: 'geral', label: '1. Cliente & Equipamento' },
-            { id: 'laudos', label: '2. Defeito & Diagnóstico' },
-            { id: 'servicos', label: `3. Serviços (${osServices.length})` },
-            { id: 'produtos', label: `4. Peças (${osProducts.length})` },
-            { id: 'licencas', label: `5. Licenças Digitais (${osLicenses.length})` },
-            { id: 'anexos', label: `6. Fotos (${attachments.length})` },
-            { id: 'totais', label: `7. Valores (${formatCurrency(totalAmount)})` },
-          ].map((tab) => (
+          {(osType === 'licenca_digital'
+            ? [
+                { id: 'geral', label: '1. Cliente & Licença Digital' },
+                { id: 'laudos', label: '2. Requisitos & Procedimento' },
+                { id: 'licencas', label: `3. Chaves & Licenças (${osLicenses.length})` },
+                { id: 'servicos', label: `4. Serviços de Instalação (${osServices.length})` },
+                { id: 'totais', label: `5. Valores & Pagamento (${formatCurrency(totalAmount)})` },
+              ]
+            : [
+                { id: 'geral', label: osType === 'hibrido' ? '1. Equipamento & Licença' : '1. Cliente & Equipamento' },
+                { id: 'laudos', label: '2. Defeito & Diagnóstico' },
+                { id: 'servicos', label: `3. Serviços (${osServices.length})` },
+                { id: 'produtos', label: `4. Peças (${osProducts.length})` },
+                { id: 'licencas', label: `5. Licenças Digitais (${osLicenses.length})` },
+                { id: 'anexos', label: `6. Fotos (${attachments.length})` },
+                { id: 'totais', label: `7. Valores (${formatCurrency(totalAmount)})` },
+              ]
+          ).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
@@ -446,9 +483,77 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
 
         {/* Corpo do Formulário */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-5">
-          {/* ABA 1: CLIENTE E EQUIPAMENTO */}
+          {/* ABA 1: CLIENTE E EQUIPAMENTO / LICENÇA */}
           {activeTab === 'geral' && (
             <div className="space-y-4">
+              {/* SELETOR DE TIPO DE ORDEM DE SERVIÇO */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Tipo de Atendimento / Serviço *
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOsType('manutencao');
+                      if (equipmentType === 'Licença Digital') setEquipmentType('Notebook');
+                    }}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all ${
+                      osType === 'manutencao'
+                        ? 'bg-blue-50/80 border-blue-500 text-blue-950 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-500 shadow-sm ring-1 ring-blue-500'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Wrench className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="font-bold text-xs block">Manutenção Física</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight block">
+                        Notebook, PC, Celular, peças e bancada
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOsType('licenca_digital');
+                      setEquipmentType(digitalDetails.target_device || digitalDetails.product_name || 'Licença Digital');
+                    }}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all ${
+                      osType === 'licenca_digital'
+                        ? 'bg-emerald-50/80 border-emerald-500 text-emerald-950 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-500 shadow-sm ring-1 ring-emerald-500'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <KeyRound className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="font-bold text-xs block">Licença Digital & Software</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight block">
+                        Windows, Office, Antivírus e ativações
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOsType('hibrido')}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all ${
+                      osType === 'hibrido'
+                        ? 'bg-purple-50/80 border-purple-500 text-purple-950 dark:bg-purple-950/60 dark:text-purple-200 dark:border-purple-500 shadow-sm ring-1 ring-purple-500'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="font-bold text-xs block">Híbrido (Reparo + Licença)</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight block">
+                        Manutenção física com licença inclusa
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Seleção de Cliente */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -537,129 +642,292 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
                 </div>
               </div>
 
-              {/* Dados do Equipamento */}
-              <div className="border border-slate-200 dark:border-slate-800 p-4 rounded-xl space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
-                  Identificação do Equipamento
-                </span>
+              {/* PAINEL DE LICENÇA DIGITAL (Exibido para Licença Digital e Híbrido) */}
+              {(osType === 'licenca_digital' || osType === 'hibrido') && (
+                <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-emerald-600" />
+                      <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 uppercase">
+                        Dados do Produto Digital & Licença
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-emerald-600 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded font-semibold">
+                      Chave de Ativação / Software
+                    </span>
+                  </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Tipo *</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Notebook, Celular"
-                      value={equipmentType}
-                      onChange={(e) => setEquipmentType(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Marca</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Dell, Apple, Samsung"
-                      value={brand}
-                      onChange={(e) => setBrand(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Modelo</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Inspiron 15, iPhone 11"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Nº Série / IMEI</label>
-                    <input
-                      type="text"
-                      placeholder="Nº de Série ou IMEI"
-                      value={serialImei}
-                      onChange={(e) => setSerialImei(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
-                      Senha de Desbloqueio (PIN / Padrão / Letras)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Senha informada pelo cliente"
-                      value={unlockPassword}
-                      onChange={(e) => setUnlockPassword(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
-                      Acessórios Deixados
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Carregador, capa, cabos"
-                      value={accessoriesLeft}
-                      onChange={(e) => setAccessoriesLeft(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-
-                {/* Checklist Físico */}
-                <div className="pt-2">
-                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">
-                    Checklist de Condição Física no Recebimento
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                    {[
-                      { key: 'riscos', label: 'Possui Riscos' },
-                      { key: 'trincos', label: 'Tela/Vidro Trincado' },
-                      { key: 'parafusos_faltando', label: 'Parafusos Faltando' },
-                      { key: 'molhado', label: 'Contato com Líquido' },
-                      { key: 'nao_liga', label: 'Não Liga' },
-                      { key: 'marcas_queda', label: 'Marcas de Queda / Batida' },
-                    ].map((item) => (
-                      <label key={item.key} className="flex items-center gap-2 p-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={(checklist as any)[item.key]}
-                          onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })}
-                          className="rounded text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-slate-700 dark:text-slate-300">{item.label}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Puxar do Estoque Digital (Auto-preenche Chave e Valor)
                       </label>
-                    ))}
+                      <select
+                        value={digitalDetails.license_id || ''}
+                        onChange={(e) => {
+                          const licId = e.target.value;
+                          const found = licenses.find(l => l.id === licId);
+                          if (found) {
+                            setDigitalDetails(prev => ({
+                              ...prev,
+                              license_id: found.id,
+                              product_name: found.name,
+                              license_key: found.license_key,
+                              activation_instructions: found.notes || '',
+                            }));
+                            if (!osLicenses.some(item => item.license_id === found.id)) {
+                              setOsLicenses([
+                                ...osLicenses,
+                                {
+                                  id: 'oslic-' + Date.now(),
+                                  service_order_id: osToEdit?.id || '',
+                                  license_id: found.id,
+                                  name: found.name,
+                                  category: found.category,
+                                  license_key: found.license_key,
+                                  unit_price: found.sale_price,
+                                }
+                              ]);
+                            }
+                          } else {
+                            setDigitalDetails(prev => ({ ...prev, license_id: '' }));
+                          }
+                        }}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      >
+                        <option value="">Selecione uma licença do estoque ou preencha manual...</option>
+                        {licenses
+                          .filter(l => l.status === 'disponivel' || osLicenses.some(item => item.license_id === l.id))
+                          .map(l => (
+                            <option key={l.id} value={l.id}>
+                              {l.name} — {formatCurrency(l.sale_price)} [Chave: {l.license_key.slice(0, 5)}•••••{l.license_key.slice(-5)}]
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Nome do Produto Digital *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Windows 11 Pro OEM, Office 2021, Kaspersky..."
+                        value={digitalDetails.product_name || ''}
+                        onChange={(e) => setDigitalDetails(prev => ({ ...prev, product_name: e.target.value }))}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Outras observações do estado físico..."
-                    value={checklist.outros_detalhes}
-                    onChange={(e) => setChecklist({ ...checklist, outros_detalhes: e.target.value })}
-                    className="w-full text-xs p-2 mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 block mb-1">
+                        Chave de Ativação / Serial Key *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
+                        value={digitalDetails.license_key || ''}
+                        onChange={(e) => setDigitalDetails(prev => ({ ...prev, license_key: e.target.value.toUpperCase() }))}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold text-emerald-800 dark:text-emerald-300 uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Dispositivo de Destino / Identificação
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: PC Escritório, Notebook Dell do Cliente..."
+                        value={digitalDetails.target_device || ''}
+                        onChange={(e) => {
+                          setDigitalDetails(prev => ({ ...prev, target_device: e.target.value }));
+                          if (osType === 'licenca_digital') setEquipmentType(e.target.value);
+                        }}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        E-mail ou Conta de Ativação do Cliente
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="cliente.conta@email.com"
+                        value={digitalDetails.customer_email || ''}
+                        onChange={(e) => setDigitalDetails(prev => ({ ...prev, customer_email: e.target.value }))}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Forma de Entrega / Ativação
+                      </label>
+                      <select
+                        value={digitalDetails.delivery_method || 'whatsapp'}
+                        onChange={(e) => setDigitalDetails(prev => ({ ...prev, delivery_method: e.target.value as any }))}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      >
+                        <option value="whatsapp">Envio pelo WhatsApp do Cliente</option>
+                        <option value="email">Envio por E-mail</option>
+                        <option value="remoto">Ativação Remota (AnyDesk / TeamViewer)</option>
+                        <option value="balcao">Entrega Presencial no Balcão</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      Instruções de Ativação & Link de Download (Impresso na OS)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Ex: Baixe o instalador oficial em microsoft.com e insira a chave durante a instalação..."
+                      value={digitalDetails.activation_instructions || ''}
+                      onChange={(e) => setDigitalDetails(prev => ({ ...prev, activation_instructions: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* PAINEL DE EQUIPAMENTO FÍSICO (Exibido para Manutenção e Híbrido) */}
+              {(osType === 'manutencao' || osType === 'hibrido') && (
+                <div className="border border-slate-200 dark:border-slate-800 p-4 rounded-xl space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                    Identificação do Equipamento Físico
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Tipo *</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Notebook, Celular"
+                        value={equipmentType}
+                        onChange={(e) => setEquipmentType(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Marca</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Dell, Apple, Samsung"
+                        value={brand}
+                        onChange={(e) => setBrand(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Modelo</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Inspiron 15, iPhone 11"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Nº Série / IMEI</label>
+                      <input
+                        type="text"
+                        placeholder="Nº de Série ou IMEI"
+                        value={serialImei}
+                        onChange={(e) => setSerialImei(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                        Senha de Desbloqueio (PIN / Padrão / Letras)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Senha informada pelo cliente"
+                        value={unlockPassword}
+                        onChange={(e) => setUnlockPassword(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                        Acessórios Deixados
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Carregador, capa, cabos"
+                        value={accessoriesLeft}
+                        onChange={(e) => setAccessoriesLeft(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Checklist Físico */}
+                  <div className="pt-2">
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">
+                      Checklist de Condição Física no Recebimento
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      {[
+                        { key: 'riscos', label: 'Possui Riscos' },
+                        { key: 'trincos', label: 'Tela/Vidro Trincado' },
+                        { key: 'parafusos_faltando', label: 'Parafusos Faltando' },
+                        { key: 'molhado', label: 'Contato com Líquido' },
+                        { key: 'nao_liga', label: 'Não Liga' },
+                        { key: 'marcas_queda', label: 'Marcas de Queda / Batida' },
+                      ].map((item) => (
+                        <label key={item.key} className="flex items-center gap-2 p-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={(checklist as any)[item.key]}
+                            onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-slate-700 dark:text-slate-300">{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Outras observações do estado físico..."
+                      value={checklist.outros_detalhes}
+                      onChange={(e) => setChecklist({ ...checklist, outros_detalhes: e.target.value })}
+                      className="w-full text-xs p-2 mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* ABA 2: DEFEITO E LAUDOS */}
+          {/* ABA 2: DEFEITO E LAUDOS / PROCEDIMENTO */}
           {activeTab === 'laudos' && (
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Defeito Relatado pelo Cliente *
+                  {osType === 'licenca_digital'
+                    ? 'Finalidade / Solicitação do Cliente *'
+                    : 'Defeito Relatado pelo Cliente *'}
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Descreva exatamente o problema que o cliente descreveu..."
+                  placeholder={
+                    osType === 'licenca_digital'
+                      ? 'Descreva a necessidade da licença (ex: Upgrade para Windows 11 Pro, renovação de antivírus corporativo, licença para novo PC)...'
+                      : 'Descreva exatamente o problema que o cliente descreveu...'
+                  }
                   value={reportedDefect}
                   onChange={(e) => setReportedDefect(e.target.value)}
                   className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -669,11 +937,17 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
 
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Laudo Técnico / Diagnóstico de Bancada
+                  {osType === 'licenca_digital'
+                    ? 'Procedimento de Ativação / Suporte Técnico'
+                    : 'Laudo Técnico / Diagnóstico de Bancada'}
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Diagnóstico técnico identificado pelos testes de bancada..."
+                  placeholder={
+                    osType === 'licenca_digital'
+                      ? 'Descreva como foi realizado o suporte (ex: Ativação remota via AnyDesk, envio da chave com passo a passo por WhatsApp, teste de ativação online)...'
+                      : 'Diagnóstico técnico identificado pelos testes de bancada...'
+                  }
                   value={technicalReport}
                   onChange={(e) => setTechnicalReport(e.target.value)}
                   className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -682,11 +956,17 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
 
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Solução Aplicada / Serviço Executado
+                  {osType === 'licenca_digital'
+                    ? 'Status da Licença / Solução Final'
+                    : 'Solução Aplicada / Serviço Executado'}
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Resumo dos procedimentos e reparos executados no equipamento..."
+                  placeholder={
+                    osType === 'licenca_digital'
+                      ? 'Ex: Chave ativada com sucesso, licença digital permanente confirmada nas configurações...'
+                      : 'Resumo dos procedimentos e reparos executados no equipamento...'
+                  }
                   value={solutionApplied}
                   onChange={(e) => setSolutionApplied(e.target.value)}
                   className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"

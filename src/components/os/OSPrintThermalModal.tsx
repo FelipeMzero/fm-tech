@@ -128,15 +128,29 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
               <div>Tel: {formatPhone(client?.whatsapp || client?.phone)}</div>
             </div>
 
-            {/* Equipamento */}
+            {/* Equipamento ou Licença */}
             <div className="border-b border-dashed border-black pb-2 space-y-0.5">
-              <div className="font-bold uppercase">EQUIPAMENTO:</div>
-              <div>{os.equipment_type} - {os.brand} {os.model}</div>
-              {os.serial_imei && <div>SN/IMEI: {os.serial_imei}</div>}
-              {os.unlock_password && <div>Senha: {os.unlock_password}</div>}
-              <div className="pt-0.5">
-                <strong>Defeito:</strong> {os.reported_defect || '-'}
-              </div>
+              {os.os_type === 'licenca_digital' ? (
+                <>
+                  <div className="font-bold uppercase">LICENÇA DIGITAL:</div>
+                  <div className="font-semibold">{os.digital_service_details?.product_name || os.equipment_type}</div>
+                  {os.digital_service_details?.target_device && <div>Destino: {os.digital_service_details.target_device}</div>}
+                  {os.digital_service_details?.customer_email && <div>Conta: {os.digital_service_details.customer_email}</div>}
+                  {os.digital_service_details?.license_key && (
+                    <div className="font-bold pt-0.5 break-all">CHAVE: {os.digital_service_details.license_key}</div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="font-bold uppercase">EQUIPAMENTO:</div>
+                  <div>{os.equipment_type} - {os.brand} {os.model}</div>
+                  {os.serial_imei && <div>SN/IMEI: {os.serial_imei}</div>}
+                  {os.unlock_password && <div>Senha: {os.unlock_password}</div>}
+                  <div className="pt-0.5">
+                    <strong>Defeito:</strong> {os.reported_defect || '-'}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Itens */}

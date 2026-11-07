@@ -125,31 +125,62 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
           </div>
         </div>
 
-        {/* Dados do Equipamento */}
-        <div className="border border-slate-200 rounded p-2.5">
-          <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-1 mb-1.5">
-            Dados do Equipamento e Acessórios
-          </div>
-          <div className="grid grid-cols-4 gap-2 text-[11px]">
-            <div><strong>Tipo:</strong> {os.equipment_type}</div>
-            <div><strong>Marca:</strong> {os.brand || '-'}</div>
-            <div><strong>Modelo:</strong> {os.model || '-'}</div>
-            <div><strong>Nº Série/IMEI:</strong> {os.serial_imei || '-'}</div>
-          </div>
-          <div className="mt-1 text-[11px] grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-            <div><strong>Senha de Desbloqueio:</strong> {os.unlock_password || 'Não fornecida / Sem senha'}</div>
-            <div><strong>Acessórios Deixados:</strong> {os.accessories_left || 'Somente o aparelho'}</div>
-          </div>
-          {os.physical_condition_checklist && (
-            <div className="mt-1 text-[10px] text-slate-600 bg-slate-50 p-1.5 rounded">
-              <strong>Checklist de Entrada:</strong> Riscos: {os.physical_condition_checklist.riscos ? 'Sim' : 'Não'} | 
-              Trincos: {os.physical_condition_checklist.trincos ? 'Sim' : 'Não'} | 
-              Parafusos Faltando: {os.physical_condition_checklist.parafusos_faltando ? 'Sim' : 'Não'} | 
-              Liga: {os.physical_condition_checklist.nao_liga ? 'Não Liga' : 'Sim'} 
-              {os.physical_condition_checklist.outros_detalhes ? ` | Obs: ${os.physical_condition_checklist.outros_detalhes}` : ''}
+        {/* Dados do Equipamento ou Licença Digital */}
+        {os.os_type === 'licenca_digital' ? (
+          <div className="border border-emerald-300 rounded p-2.5 bg-emerald-50/40">
+            <div className="font-bold text-[11px] uppercase tracking-wider text-emerald-800 border-b border-emerald-200 pb-1 mb-1.5 flex items-center justify-between">
+              <span>Identificação da Licença & Produto Digital</span>
+              <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-semibold">
+                ENTREGA DIGITAL / SOFTWARE
+              </span>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-3 gap-2 text-[11px]">
+              <div><strong>Produto:</strong> {os.digital_service_details?.product_name || os.equipment_type}</div>
+              <div><strong>Destino:</strong> {os.digital_service_details?.target_device || 'Computador do Cliente'}</div>
+              <div><strong>Entrega:</strong> {os.digital_service_details?.delivery_method ? os.digital_service_details.delivery_method.toUpperCase() : 'WHATSAPP'}</div>
+            </div>
+            {os.digital_service_details?.customer_email && (
+              <div className="mt-1 text-[11px]">
+                <strong>Conta / E-mail de Ativação:</strong> {os.digital_service_details.customer_email}
+              </div>
+            )}
+            {os.digital_service_details?.license_key && (
+              <div className="mt-1.5 p-1.5 bg-white border border-emerald-300 rounded font-mono text-xs font-bold text-emerald-800">
+                CHAVE SERIAL: {os.digital_service_details.license_key}
+              </div>
+            )}
+            {os.digital_service_details?.activation_instructions && (
+              <div className="mt-1 text-[10px] text-slate-700 bg-white/80 p-1.5 rounded border border-emerald-200">
+                <strong>Instruções de Ativação:</strong> {os.digital_service_details.activation_instructions}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="border border-slate-200 rounded p-2.5">
+            <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-1 mb-1.5">
+              Dados do Equipamento e Acessórios
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-[11px]">
+              <div><strong>Tipo:</strong> {os.equipment_type}</div>
+              <div><strong>Marca:</strong> {os.brand || '-'}</div>
+              <div><strong>Modelo:</strong> {os.model || '-'}</div>
+              <div><strong>Nº Série/IMEI:</strong> {os.serial_imei || '-'}</div>
+            </div>
+            <div className="mt-1 text-[11px] grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+              <div><strong>Senha de Desbloqueio:</strong> {os.unlock_password || 'Não fornecida / Sem senha'}</div>
+              <div><strong>Acessórios Deixados:</strong> {os.accessories_left || 'Somente o aparelho'}</div>
+            </div>
+            {os.physical_condition_checklist && (
+              <div className="mt-1 text-[10px] text-slate-600 bg-slate-50 p-1.5 rounded">
+                <strong>Checklist de Entrada:</strong> Riscos: {os.physical_condition_checklist.riscos ? 'Sim' : 'Não'} | 
+                Trincos: {os.physical_condition_checklist.trincos ? 'Sim' : 'Não'} | 
+                Parafusos Faltando: {os.physical_condition_checklist.parafusos_faltando ? 'Sim' : 'Não'} | 
+                Liga: {os.physical_condition_checklist.nao_liga ? 'Não Liga' : 'Sim'} 
+                {os.physical_condition_checklist.outros_detalhes ? ` | Obs: ${os.physical_condition_checklist.outros_detalhes}` : ''}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Defeito Relatado e Laudo Técnico */}
         <div className="grid grid-cols-2 gap-3">
