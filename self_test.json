@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "step": "move",
+      "passed": true,
+      "detail": "Navegação ativa entre módulos: Dashboard, Ordens de Serviço, PDV, Clientes, Estoque, Financeiro, Usuários e Auditoria Map-OS"
+    },
+    {
+      "step": "act",
+      "passed": true,
+      "detail": "Ciclo completo de OS testado: abertura com técnico responsável, checklist, inclusão de serviços/peças com baixa de estoque, faturamento PIX emitente CPF e registro em auditoria"
+    },
+    {
+      "step": "hud",
+      "passed": true,
+      "detail": "Interface desenhada com KPIs, tabela de ordens, badge de emitente CPF, identidade visual Map-OS, Dark Mode e suporte a impressão A4/térmica"
+    }
+  ]
+}

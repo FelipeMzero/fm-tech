@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "values": [
+    {
+      "name": "default warranty duration",
+      "group": "warranty",
+      "value": 90,
+      "unit": "days",
+      "source": "CDC Art. 26 II"
+    },
+    {
+      "name": "issuer document type",
+      "group": "legal",
+      "value": "CPF",
+      "source": "business requirement"
+    },
+    {
+      "name": "thermal roll width standard",
+      "group": "printing",
+      "value": 80,
+      "unit": "mm",
+      "source": "ESC/POS standard"
+    },
+    {
+      "name": "thermal roll width compact",
+      "group": "printing",
+      "value": 58,
+      "unit": "mm",
+      "source": "ESC/POS portable"
+    },
+    {
+      "name": "pix emv gui",
+      "group": "payments",
+      "value": "br.gov.bcb.pix",
+      "source": "Banco Central do Brasil BRCode Specification"
+    },
+    {
+      "name": "default profit margin",
+      "group": "pricing",
+      "value": 40,
+      "unit": "%",
+      "source": "pricing formula"
+    },
+    {
+      "name": "min stock alert default",
+      "group": "inventory",
+      "value": 5,
+      "unit": "units",
+      "source": "inventory rules"
+    }
+  ]
+}

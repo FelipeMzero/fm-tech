@@ -1,0 +1,1091 @@
+import React, { useState } from 'react';
+import { 
+  ServiceOrder, 
+  OSStatus, 
+  DiscountType, 
+  OSServiceItem, 
+  OSProductItem, 
+  OSAttachment 
+} from '../../lib/types';
+import { useAppStore } from '../../lib/store';
+import { 
+  formatCurrency, 
+  fetchAddressByCep, 
+  isValidCPF, 
+  isValidCNPJ, 
+  formatCPF, 
+  formatCNPJ,
+  formatPhone,
+  formatCEP
+} from '../../lib/utils';
+import { 
+  X, 
+  Save, 
+  Plus, 
+  Trash2, 
+  Wrench, 
+  Package, 
+  Camera, 
+  Clock, 
+  UserPlus, 
+  CheckSquare, 
+  ShieldCheck, 
+  FileText 
+} from 'lucide-react';
+
+interface OSFormModalProps {
+  osToEdit?: ServiceOrder | null;
+  onClose: () => void;
+  onSaved: (savedOS: ServiceOrder) => void;
+}
+
+export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onSaved }) => {
+  const { 
+    clients, 
+    addClient, 
+    products, 
+    services, 
+    warrantyTerms, 
+    addServiceOrder, 
+    updateServiceOrder, 
+    issuer,
+    users 
+  } = useAppStore();
+
+  const [activeTab, setActiveTab] = useState<'geral' | 'laudos' | 'servicos' | 'produtos' | 'anexos' | 'totais'>('geral');
+
+  // Dados do formulário da OS
+  const [clientId, setClientId] = useState<string>(osToEdit?.client_id || (clients[0]?.id || ''));
+  const [status, setStatus] = useState<OSStatus>(osToEdit?.status || 'orcamento');
+  const [technicianName, setTechnicianName] = useState<string>(
+    osToEdit?.technician_name || (users.find(u => u.role === 'tecnico')?.name || issuer.full_name)
+  );
+  const [warrantyTermId, setWarrantyTermId] = useState<string>(osToEdit?.warranty_term_id || warrantyTerms[0]?.id || '');
+  const [equipmentType, setEquipmentType] = useState<string>(osToEdit?.equipment_type || 'Notebook');
+  const [brand, setBrand] = useState<string>(osToEdit?.brand || '');
+  const [model, setModel] = useState<string>(osToEdit?.model || '');
+  const [serialImei, setSerialImei] = useState<string>(osToEdit?.serial_imei || '');
+  const [unlockPassword, setUnlockPassword] = useState<string>(osToEdit?.unlock_password || '');
+  const [accessoriesLeft, setAccessoriesLeft] = useState<string>(osToEdit?.accessories_left || '');
+  
+  // Checklist de Condições Físicas
+  const [checklist, setChecklist] = useState({
+    riscos: osToEdit?.physical_condition_checklist?.riscos || false,
+    trincos: osToEdit?.physical_condition_checklist?.trincos || false,
+    parafusos_faltando: osToEdit?.physical_condition_checklist?.parafusos_faltando || false,
+    molhado: osToEdit?.physical_condition_checklist?.molhado || false,
+    nao_liga: osToEdit?.physical_condition_checklist?.nao_liga || false,
+    marcas_queda: osToEdit?.physical_condition_checklist?.marcas_queda || false,
+    outros_detalhes: osToEdit?.physical_condition_checklist?.outros_detalhes || '',
+  });
+
+  // Laudos
+  const [reportedDefect, setReportedDefect] = useState<string>(osToEdit?.reported_defect || '');
+  const [technicalReport, setTechnicalReport] = useState<string>(osToEdit?.technical_report || '');
+  const [solutionApplied, setSolutionApplied] = useState<string>(osToEdit?.solution_applied || '');
+  const [internalObservations, setInternalObservations] = useState<string>(osToEdit?.internal_observations || '');
+
+  // Prazos
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState<string>(
+    osToEdit?.estimated_delivery_date ? osToEdit.estimated_delivery_date.split('T')[0] : ''
+  );
+
+  // Serviços e Peças
+  const [osServices, setOsServices] = useState<OSServiceItem[]>(osToEdit?.services || []);
+  const [osProducts, setOsProducts] = useState<OSProductItem[]>(osToEdit?.products || []);
+
+  // Descontos
+  const [discountType, setDiscountType] = useState<DiscountType>(osToEdit?.discount_type || 'R$');
+  const [discountValue, setDiscountValue] = useState<number>(osToEdit?.discount_value || 0);
+
+  // Anexos de fotos
+  const [attachments, setAttachments] = useState<OSAttachment[]>(osToEdit?.attachments || []);
+  const [newPhotoUrl, setNewPhotoUrl] = useState<string>('');
+  const [newPhotoCaption, setNewPhotoCaption] = useState<string>('');
+
+  // Modal para cadastrar cliente na hora (Rápido)
+  const [showNewClientModal, setShowNewClientModal] = useState<boolean>(false);
+  const [newClientName, setNewClientName] = useState<string>('');
+  const [newClientDoc, setNewClientDoc] = useState<string>('');
+  const [newClientPhone, setNewClientPhone] = useState<string>('');
+  const [newClientCep, setNewClientCep] = useState<string>('');
+  const [newClientStreet, setNewClientStreet] = useState<string>('');
+  const [newClientNumber, setNewClientNumber] = useState<string>('');
+  const [newClientCity, setNewClientCity] = useState<string>('');
+  const [newClientState, setNewClientState] = useState<string>('');
+
+  // Itens para adicionar
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+
+  // Cálculo de Subtotais
+  const servicesTotal = osServices.reduce((sum, s) => sum + s.subtotal, 0);
+  const productsTotal = osProducts.reduce((sum, p) => sum + p.subtotal, 0);
+  const grossTotal = servicesTotal + productsTotal;
+
+  const discountAmount = discountType === '%' 
+    ? (grossTotal * discountValue) / 100 
+    : discountValue;
+
+  const totalAmount = Math.max(0, grossTotal - discountAmount);
+
+  // Adicionar Serviço
+  const handleAddService = () => {
+    const serv = services.find(s => s.id === selectedServiceId);
+    if (!serv) return;
+
+    const newItem: OSServiceItem = {
+      id: 'oss-' + Date.now(),
+      service_order_id: osToEdit?.id || '',
+      service_id: serv.id,
+      name: serv.name,
+      quantity: 1,
+      unit_price: serv.base_price,
+      subtotal: serv.base_price,
+    };
+    setOsServices([...osServices, newItem]);
+    setSelectedServiceId('');
+  };
+
+  const handleRemoveService = (id: string) => {
+    setOsServices(osServices.filter(s => s.id !== id));
+  };
+
+  // Adicionar Produto
+  const handleAddProduct = () => {
+    const prod = products.find(p => p.id === selectedProductId);
+    if (!prod) return;
+
+    const newItem: OSProductItem = {
+      id: 'osp-' + Date.now(),
+      service_order_id: osToEdit?.id || '',
+      product_id: prod.id,
+      name: prod.description,
+      quantity: 1,
+      unit_price: prod.sale_price,
+      subtotal: prod.sale_price,
+      stock_deducted: false,
+    };
+    setOsProducts([...osProducts, newItem]);
+    setSelectedProductId('');
+  };
+
+  const handleRemoveProduct = (id: string) => {
+    setOsProducts(osProducts.filter(p => p.id !== id));
+  };
+
+  // Adicionar Foto
+  const handleAddAttachment = () => {
+    if (!newPhotoUrl) return;
+    const newAtt: OSAttachment = {
+      id: 'att-' + Date.now(),
+      service_order_id: osToEdit?.id || '',
+      file_url: newPhotoUrl,
+      file_name: 'foto_' + Date.now() + '.jpg',
+      caption: newPhotoCaption || 'Evidência fotográfica',
+      created_at: new Date().toISOString(),
+    };
+    setAttachments([...attachments, newAtt]);
+    setNewPhotoUrl('');
+    setNewPhotoCaption('');
+  };
+
+  // Busca rápida de CEP no modal de cliente
+  const handleCepSearch = async (cep: string) => {
+    setNewClientCep(cep);
+    if (cep.replace(/\D/g, '').length === 8) {
+      const res = await fetchAddressByCep(cep);
+      if (res && !res.error) {
+        setNewClientStreet(res.street);
+        setNewClientCity(res.city);
+        setNewClientState(res.state);
+      }
+    }
+  };
+
+  // Salvar Novo Cliente Rápido
+  const handleSaveQuickClient = () => {
+    if (!newClientName || !newClientDoc) {
+      alert('Preencha ao menos o Nome e CPF/CNPJ do cliente.');
+      return;
+    }
+    const cleanDoc = newClientDoc.replace(/\D/g, '');
+    const isPF = cleanDoc.length <= 11;
+
+    const created = addClient({
+      name: newClientName,
+      document: newClientDoc,
+      person_type: isPF ? 'PF' : 'PJ',
+      phone: newClientPhone,
+      whatsapp: newClientPhone,
+      zip_code: newClientCep,
+      street: newClientStreet,
+      number: newClientNumber,
+      city: newClientCity,
+      state: newClientState,
+      is_supplier: false,
+    });
+
+    setClientId(created.id);
+    setShowNewClientModal(false);
+  };
+
+  // Salvar OS
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId) {
+      alert('Por favor selecione ou cadastre um cliente.');
+      return;
+    }
+    if (!reportedDefect) {
+      alert('Por favor informe o defeito relatado pelo cliente.');
+      return;
+    }
+
+    const payload: Partial<ServiceOrder> = {
+      client_id: clientId,
+      status,
+      technician_name: technicianName,
+      warranty_term_id: warrantyTermId,
+      equipment_type: equipmentType,
+      brand,
+      model,
+      serial_imei: serialImei,
+      unlock_password: unlockPassword,
+      accessories_left: accessoriesLeft,
+      physical_condition_checklist: checklist,
+      reported_defect: reportedDefect,
+      technical_report: technicalReport,
+      solution_applied: solutionApplied,
+      internal_observations: internalObservations,
+      estimated_delivery_date: estimatedDeliveryDate || undefined,
+      services: osServices,
+      products: osProducts,
+      attachments,
+      services_total: servicesTotal,
+      products_total: productsTotal,
+      discount_type: discountType,
+      discount_value: discountValue,
+      total_amount: totalAmount,
+    };
+
+    let result: ServiceOrder;
+    if (osToEdit) {
+      updateServiceOrder(osToEdit.id, payload);
+      result = { ...osToEdit, ...payload } as ServiceOrder;
+    } else {
+      result = addServiceOrder(payload);
+    }
+
+    onSaved(result);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh]">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <Wrench className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                {osToEdit ? `Editar Ordem de Serviço #${osToEdit.os_number}` : 'Nova Ordem de Serviço'}
+              </h2>
+              <span className="text-[11px] text-slate-500">
+                Emitente: {issuer.full_name} • CPF: {issuer.cpf}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Abas */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 gap-2 bg-slate-50 dark:bg-slate-900/50 text-xs font-semibold overflow-x-auto">
+          {[
+            { id: 'geral', label: '1. Cliente & Equipamento' },
+            { id: 'laudos', label: '2. Defeito & Diagnóstico' },
+            { id: 'servicos', label: `3. Serviços (${osServices.length})` },
+            { id: 'produtos', label: `4. Peças (${osProducts.length})` },
+            { id: 'anexos', label: `5. Fotos (${attachments.length})` },
+            { id: 'totais', label: `6. Valores (${formatCurrency(totalAmount)})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`py-3 px-3 border-b-2 transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Corpo do Formulário */}
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-5">
+          {/* ABA 1: CLIENTE E EQUIPAMENTO */}
+          {activeTab === 'geral' && (
+            <div className="space-y-4">
+              {/* Seleção de Cliente */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Cliente Selecionado *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewClientModal(true)}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ Cadastrar Novo Cliente</span>
+                  </button>
+                </div>
+                <select
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecione um cliente...</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} — {formatCPF(c.document)} ({c.phone || c.whatsapp})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status, Técnico e Termo de Garantia */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Status da Ordem de Serviço
+                  </label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as OSStatus)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-orange-700 dark:text-orange-300"
+                  >
+                    <option value="orcamento">Orçamento Inicial</option>
+                    <option value="aberto">Aberto / Na Fila</option>
+                    <option value="em_andamento">Em Andamento / Bancada</option>
+                    <option value="aguardando_pecas">Aguardando Peças</option>
+                    <option value="aguardando_aprovacao">Aguardando Aprovação do Cliente</option>
+                    <option value="aprovado">Aprovado pelo Cliente</option>
+                    <option value="finalizado">Finalizado / Pronto para Retirada</option>
+                    <option value="entregue">Entregue ao Cliente</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Técnico Responsável (Map-OS)
+                  </label>
+                  <select
+                    value={technicianName}
+                    onChange={(e) => setTechnicianName(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                  >
+                    <option value={issuer.full_name}>{issuer.full_name} (Titular PF)</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name} ({u.role.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Termo de Garantia Aplicado
+                  </label>
+                  <select
+                    value={warrantyTermId}
+                    onChange={(e) => setWarrantyTermId(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    {warrantyTerms.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.title} ({w.days_duration} dias)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Dados do Equipamento */}
+              <div className="border border-slate-200 dark:border-slate-800 p-4 rounded-xl space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                  Identificação do Equipamento
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Tipo *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Notebook, Celular"
+                      value={equipmentType}
+                      onChange={(e) => setEquipmentType(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Marca</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Dell, Apple, Samsung"
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Modelo</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Inspiron 15, iPhone 11"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Nº Série / IMEI</label>
+                    <input
+                      type="text"
+                      placeholder="Nº de Série ou IMEI"
+                      value={serialImei}
+                      onChange={(e) => setSerialImei(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                      Senha de Desbloqueio (PIN / Padrão / Letras)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Senha informada pelo cliente"
+                      value={unlockPassword}
+                      onChange={(e) => setUnlockPassword(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                      Acessórios Deixados
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Carregador, capa, cabos"
+                      value={accessoriesLeft}
+                      onChange={(e) => setAccessoriesLeft(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Checklist Físico */}
+                <div className="pt-2">
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">
+                    Checklist de Condição Física no Recebimento
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                    {[
+                      { key: 'riscos', label: 'Possui Riscos' },
+                      { key: 'trincos', label: 'Tela/Vidro Trincado' },
+                      { key: 'parafusos_faltando', label: 'Parafusos Faltando' },
+                      { key: 'molhado', label: 'Contato com Líquido' },
+                      { key: 'nao_liga', label: 'Não Liga' },
+                      { key: 'marcas_queda', label: 'Marcas de Queda / Batida' },
+                    ].map((item) => (
+                      <label key={item.key} className="flex items-center gap-2 p-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(checklist as any)[item.key]}
+                          onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })}
+                          className="rounded text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-slate-700 dark:text-slate-300">{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Outras observações do estado físico..."
+                    value={checklist.outros_detalhes}
+                    onChange={(e) => setChecklist({ ...checklist, outros_detalhes: e.target.value })}
+                    className="w-full text-xs p-2 mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA 2: DEFEITO E LAUDOS */}
+          {activeTab === 'laudos' && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Defeito Relatado pelo Cliente *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Descreva exatamente o problema que o cliente descreveu..."
+                  value={reportedDefect}
+                  onChange={(e) => setReportedDefect(e.target.value)}
+                  className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Laudo Técnico / Diagnóstico de Bancada
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Diagnóstico técnico identificado pelos testes de bancada..."
+                  value={technicalReport}
+                  onChange={(e) => setTechnicalReport(e.target.value)}
+                  className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Solução Aplicada / Serviço Executado
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Resumo dos procedimentos e reparos executados no equipamento..."
+                  value={solutionApplied}
+                  onChange={(e) => setSolutionApplied(e.target.value)}
+                  className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                <label className="text-xs font-bold text-amber-800 dark:text-amber-300 block mb-1">
+                  Observações Internas (Invisível para o Cliente e na Impressão)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Anotações confidenciais da oficina (ex: custo real, histórico de comportamento do cliente)..."
+                  value={internalObservations}
+                  onChange={(e) => setInternalObservations(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ABA 3: SERVIÇOS */}
+          {activeTab === 'servicos' && (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <select
+                  value={selectedServiceId}
+                  onChange={(e) => setSelectedServiceId(e.target.value)}
+                  className="flex-1 text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                >
+                  <option value="">Selecione um serviço do catálogo...</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {formatCurrency(s.base_price)}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleAddService}
+                  disabled={!selectedServiceId}
+                  className="px-4 py-2 bg-blue-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar</span>
+                </button>
+              </div>
+
+              {osServices.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-lg">
+                  Nenhum serviço adicionado a esta OS ainda.
+                </div>
+              ) : (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5">Serviço</th>
+                        <th className="p-2.5 w-20 text-center">Qtd</th>
+                        <th className="p-2.5 w-28 text-right">Unitário</th>
+                        <th className="p-2.5 w-28 text-right">Subtotal</th>
+                        <th className="p-2.5 w-12 text-center">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {osServices.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-medium">{item.name}</td>
+                          <td className="p-2.5 text-center">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const q = parseFloat(e.target.value) || 1;
+                                const updated = [...osServices];
+                                updated[idx].quantity = q;
+                                updated[idx].subtotal = q * updated[idx].unit_price;
+                                setOsServices(updated);
+                              }}
+                              className="w-14 p-1 text-center rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-mono">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.unit_price}
+                              onChange={(e) => {
+                                const p = parseFloat(e.target.value) || 0;
+                                const updated = [...osServices];
+                                updated[idx].unit_price = p;
+                                updated[idx].subtotal = updated[idx].quantity * p;
+                                setOsServices(updated);
+                              }}
+                              className="w-20 p-1 text-right rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
+                            {formatCurrency(item.subtotal)}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveService(item.id)}
+                              className="p-1 text-rose-500 hover:text-rose-700"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ABA 4: PEÇAS E PRODUTOS */}
+          {activeTab === 'produtos' && (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="flex-1 text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                >
+                  <option value="">Selecione uma peça do estoque...</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.description} — {formatCurrency(p.sale_price)} (Estoque: {p.current_stock})
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleAddProduct}
+                  disabled={!selectedProductId}
+                  className="px-4 py-2 bg-blue-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar Peça</span>
+                </button>
+              </div>
+
+              {osProducts.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-lg">
+                  Nenhuma peça vinculada a esta OS.
+                </div>
+              ) : (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5">Peça / Produto</th>
+                        <th className="p-2.5 w-20 text-center">Qtd</th>
+                        <th className="p-2.5 w-28 text-right">Unitário</th>
+                        <th className="p-2.5 w-28 text-right">Subtotal</th>
+                        <th className="p-2.5 w-24 text-center">Estoque</th>
+                        <th className="p-2.5 w-12 text-center">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {osProducts.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-medium">{item.name}</td>
+                          <td className="p-2.5 text-center">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const q = parseFloat(e.target.value) || 1;
+                                const updated = [...osProducts];
+                                updated[idx].quantity = q;
+                                updated[idx].subtotal = q * updated[idx].unit_price;
+                                setOsProducts(updated);
+                              }}
+                              className="w-14 p-1 text-center rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-mono">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.unit_price}
+                              onChange={(e) => {
+                                const p = parseFloat(e.target.value) || 0;
+                                const updated = [...osProducts];
+                                updated[idx].unit_price = p;
+                                updated[idx].subtotal = updated[idx].quantity * p;
+                                setOsProducts(updated);
+                              }}
+                              className="w-20 p-1 text-right rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(item.subtotal)}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-semibold">
+                              Auto-Baixa
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveProduct(item.id)}
+                              className="p-1 text-rose-500 hover:text-rose-700"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ABA 5: ANEXOS E FOTOS */}
+          {activeTab === 'anexos' && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Adicionar Evidência Fotográfica (Supabase Storage / Web URL)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="url"
+                    placeholder="URL da imagem (ex: https://...)"
+                    value={newPhotoUrl}
+                    onChange={(e) => setNewPhotoUrl(e.target.value)}
+                    className="text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Legenda (ex: Estado da carcaça na entrada)"
+                    value={newPhotoCaption}
+                    onChange={(e) => setNewPhotoCaption(e.target.value)}
+                    className="text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+                <div className="flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Atalho para adicionar imagem simulada de teste
+                      setNewPhotoUrl('https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=600&auto=format&fit=crop&q=60');
+                      setNewPhotoCaption('Placa-mãe analisada sob microscópio');
+                    }}
+                    className="text-[11px] text-blue-600 hover:underline"
+                  >
+                    Usar foto de amostra técnica
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddAttachment}
+                    disabled={!newPhotoUrl}
+                    className="px-3 py-1.5 bg-blue-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold hover:bg-blue-700"
+                  >
+                    Anexar Foto
+                  </button>
+                </div>
+              </div>
+
+              {attachments.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-lg">
+                  Nenhuma foto anexada a esta Ordem de Serviço ainda.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {attachments.map((att, idx) => (
+                    <div key={idx} className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-800 relative group">
+                      <img src={att.file_url} alt={att.caption} className="w-full h-32 object-cover" />
+                      <div className="p-2 text-[11px]">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">{att.caption || 'Foto'}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ABA 6: TOTAIS E PRAZOS */}
+          {activeTab === 'totais' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Previsão de Conclusão / Entrega
+                  </label>
+                  <input
+                    type="date"
+                    value={estimatedDeliveryDate}
+                    onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Desconto
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                      className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Tipo Desconto
+                    </label>
+                    <select
+                      value={discountType}
+                      onChange={(e) => setDiscountType(e.target.value as DiscountType)}
+                      className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                    >
+                      <option value="R$">R$ (Fixo)</option>
+                      <option value="%">% (Percentual)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Box de Resumo de Valores */}
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2 text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Subtotal Serviços ({osServices.length} itens):</span>
+                  <span className="font-mono font-semibold">{formatCurrency(servicesTotal)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Subtotal Peças ({osProducts.length} itens):</span>
+                  <span className="font-mono font-semibold">{formatCurrency(productsTotal)}</span>
+                </div>
+                {discountValue > 0 && (
+                  <div className="flex justify-between text-emerald-600 font-medium">
+                    <span>Desconto ({discountType === '%' ? `${discountValue}%` : 'R$'}):</span>
+                    <span className="font-mono">- {formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-extrabold border-t border-slate-300 dark:border-slate-700 pt-2 text-slate-900 dark:text-white">
+                  <span>VALOR TOTAL DA ORDEM:</span>
+                  <span className="font-mono text-blue-600 dark:text-blue-400 text-lg">
+                    {formatCurrency(totalAmount)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Rodapé com Botão Salvar */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-md flex items-center gap-1.5 transition-all"
+            >
+              <Save className="w-4 h-4" />
+              <span>Salvar Ordem de Serviço</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* MODAL RAPIDO: NOVO CLIENTE */}
+      {showNewClientModal && (
+        <div className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cadastro Rápido de Cliente</h3>
+              <button onClick={() => setShowNewClientModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div>
+                <label className="font-semibold block mb-0.5">Nome Completo *</label>
+                <input
+                  type="text"
+                  placeholder="Nome do cliente"
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  className="w-full p-2 border rounded bg-white dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-semibold block mb-0.5">CPF ou CNPJ *</label>
+                  <input
+                    type="text"
+                    placeholder="Documento"
+                    value={newClientDoc}
+                    onChange={(e) => setNewClientDoc(e.target.value)}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-0.5">Telefone / WhatsApp</label>
+                  <input
+                    type="text"
+                    placeholder="(11) 98888-7777"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="font-semibold block mb-0.5">CEP (ViaCEP)</label>
+                  <input
+                    type="text"
+                    placeholder="00000-000"
+                    value={newClientCep}
+                    onChange={(e) => handleCepSearch(e.target.value)}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800 font-mono"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="font-semibold block mb-0.5">Logradouro</label>
+                  <input
+                    type="text"
+                    placeholder="Rua..."
+                    value={newClientStreet}
+                    onChange={(e) => setNewClientStreet(e.target.value)}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="font-semibold block mb-0.5">Número</label>
+                  <input
+                    type="text"
+                    placeholder="123"
+                    value={newClientNumber}
+                    onChange={(e) => setNewClientNumber(e.target.value)}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-0.5">Cidade</label>
+                  <input
+                    type="text"
+                    placeholder="Cidade"
+                    value={newClientCity}
+                    onChange={(e) => setNewClientCity(e.target.value)}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-0.5">UF</label>
+                  <input
+                    type="text"
+                    placeholder="SP"
+                    maxLength={2}
+                    value={newClientState}
+                    onChange={(e) => setNewClientState(e.target.value.toUpperCase())}
+                    className="w-full p-2 border rounded bg-white dark:bg-slate-800 text-center"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowNewClientModal(false)}
+                className="px-3 py-1.5 text-xs border rounded"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuickClient}
+                className="px-4 py-1.5 text-xs bg-blue-600 text-white font-semibold rounded hover:bg-blue-700"
+              >
+                Cadastrar e Selecionar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
