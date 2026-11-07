@@ -251,6 +251,89 @@ export async function fetchAddressByCep(cep: string): Promise<{
   }
 }
 
+export interface CnpjLookupResult {
+  razao_social: string;
+  nome_fantasia?: string;
+  phone?: string;
+  email?: string;
+  cep?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  error?: boolean;
+  message?: string;
+}
+
+export async function fetchCnpjData(cnpj: string): Promise<CnpjLookupResult | null> {
+  const clean = cnpj.replace(/\D/g, '');
+  if (clean.length !== 14) return null;
+
+  // 1. Tentar BrasilAPI
+  try {
+    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
+    if (res.ok) {
+      const data = await res.json();
+      const rawPhone = data.ddd_telefone_1 || data.ddd_telefone_2 || '';
+      const formattedPhone = rawPhone.length >= 10 
+        ? `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2)}` 
+        : rawPhone;
+
+      return {
+        razao_social: data.razao_social || '',
+        nome_fantasia: data.nome_fantasia || '',
+        phone: formattedPhone,
+        email: data.email || '',
+        cep: data.cep || '',
+        street: data.logradouro || '',
+        number: data.numero || '',
+        complement: data.complemento || '',
+        neighborhood: data.bairro || '',
+        city: data.municipio || '',
+        state: data.uf || '',
+      };
+    }
+  } catch (err) {
+    console.warn('BrasilAPI CNPJ request falhou, tentando fallback:', err);
+  }
+
+  // 2. Fallback via MinhaReceita
+  try {
+    const res = await fetch(`https://minhareceita.org/${clean}`);
+    if (res.ok) {
+      const data = await res.json();
+      const rawPhone = data.ddd_telefone_1 || data.ddd_telefone_2 || '';
+      const formattedPhone = rawPhone.length >= 10 
+        ? `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2)}` 
+        : rawPhone;
+
+      return {
+        razao_social: data.razao_social || '',
+        nome_fantasia: data.nome_fantasia || '',
+        phone: formattedPhone,
+        email: data.email || '',
+        cep: data.cep || '',
+        street: data.logradouro || '',
+        number: data.numero || '',
+        complement: data.complemento || '',
+        neighborhood: data.bairro || '',
+        city: data.municipio || '',
+        state: data.uf || '',
+      };
+    }
+  } catch (err) {
+    console.error('Erro na consulta CNPJ:', err);
+  }
+
+  return {
+    razao_social: '',
+    error: true,
+    message: 'Não foi possível localizar dados para o CNPJ informado na Receita Federal.',
+  };
+}
+
 export const OS_STATUS_DETAILS: Record<OSStatus, { label: string; bg: string; text: string; border: string }> = {
   orcamento: { label: 'Orçamento', bg: 'bg-amber-500/10 dark:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800' },
   aberto: { label: 'Aberto', bg: 'bg-blue-500/10 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },

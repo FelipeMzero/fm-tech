@@ -5,9 +5,12 @@ import {
   formatDocument, 
   formatPhone, 
   formatCEP, 
+  formatCPF,
+  formatCNPJ,
   isValidCPF, 
   isValidCNPJ, 
-  fetchAddressByCep 
+  fetchAddressByCep,
+  fetchCnpjData
 } from '../../lib/utils';
 import { 
   Users, 
@@ -21,7 +24,10 @@ import {
   X, 
   Save, 
   Building2, 
-  User 
+  User,
+  Loader2,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 export const ClientsScreen: React.FC = () => {
@@ -49,6 +55,8 @@ export const ClientsScreen: React.FC = () => {
   const [state, setState] = useState<string>('');
   const [isSupplier, setIsSupplier] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>('');
+  const [isSearchingCnpj, setIsSearchingCnpj] = useState<boolean>(false);
+  const [cnpjFeedback, setCnpjFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const openNewModal = () => {
     setEditingClient(null);
@@ -68,6 +76,7 @@ export const ClientsScreen: React.FC = () => {
     setState('');
     setIsSupplier(false);
     setNotes('');
+    setCnpjFeedback(null);
     setIsModalOpen(true);
   };
 
@@ -89,7 +98,54 @@ export const ClientsScreen: React.FC = () => {
     setState(c.state || '');
     setIsSupplier(!!c.is_supplier);
     setNotes(c.notes || '');
+    setCnpjFeedback(null);
     setIsModalOpen(true);
+  };
+
+  const handleCnpjLookup = async () => {
+    const clean = document.replace(/\D/g, '');
+    if (clean.length !== 14) {
+      setCnpjFeedback({ type: 'error', message: 'Digite os 14 dígitos do CNPJ para efetuar a busca.' });
+      return;
+    }
+
+    setIsSearchingCnpj(true);
+    setCnpjFeedback(null);
+
+    try {
+      const data = await fetchCnpjData(clean);
+      if (!data || data.error) {
+        setCnpjFeedback({ 
+          type: 'error', 
+          message: data?.message || 'CNPJ não encontrado na base pública da Receita Federal.' 
+        });
+      } else {
+        const companyName = data.razao_social + (data.nome_fantasia ? ` (${data.nome_fantasia})` : '');
+        setName(companyName);
+        if (data.phone) {
+          setPhone(data.phone);
+          setWhatsapp(data.phone);
+        }
+        if (data.email) setEmail(data.email);
+        if (data.cep) setZipCode(formatCEP(data.cep));
+        if (data.street) setStreet(data.street);
+        if (data.number) setNumber(data.number);
+        if (data.complement) setComplement(data.complement);
+        if (data.neighborhood) setNeighborhood(data.neighborhood);
+        if (data.city) setCity(data.city);
+        if (data.state) setState(data.state);
+
+        setDocument(formatCNPJ(clean));
+        setCnpjFeedback({ 
+          type: 'success', 
+          message: `Dados da empresa "${data.razao_social}" carregados e preenchidos com sucesso!` 
+        });
+      }
+    } catch {
+      setCnpjFeedback({ type: 'error', message: 'Falha de conexão ao consultar CNPJ. Tente novamente.' });
+    } finally {
+      setIsSearchingCnpj(false);
+    }
   };
 
   const handleCepLookup = async (cep: string) => {
@@ -342,6 +398,31 @@ export const ClientsScreen: React.FC = () => {
                 </label>
               </div>
 
+              {/* Feedback de busca CNPJ */}
+              {cnpjFeedback && (
+                <div
+                  className={`p-2.5 rounded-lg text-xs flex items-center gap-2 transition-all ${
+                    cnpjFeedback.type === 'success'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                  }`}
+                >
+                  {cnpjFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  )}
+                  <span className="flex-1 font-medium">{cnpjFeedback.message}</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setCnpjFeedback(null)} 
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="font-semibold block mb-1">
                   {personType === 'PF' ? 'Nome Completo *' : 'Razão Social / Nome Fantasia *'}
@@ -349,25 +430,59 @@ export const ClientsScreen: React.FC = () => {
                 <input
                   type="text"
                   required
+                  placeholder={personType === 'PF' ? 'Ex: João da Silva' : 'Ex: ABC Comércio LTDA'}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full p-2 border rounded-lg bg-white dark:bg-slate-800"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">
-                    {personType === 'PF' ? 'CPF *' : 'CNPJ *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
-                    value={document}
-                    onChange={(e) => setDocument(e.target.value)}
-                    className="w-full p-2 border rounded-lg bg-white dark:bg-slate-800 font-mono"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold block">
+                      {personType === 'PF' ? 'CPF *' : 'CNPJ *'}
+                    </label>
+                    {personType === 'PJ' && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                        Consulta Receita Federal
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
+                      value={document}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDocument(personType === 'PJ' ? formatCNPJ(val) : formatCPF(val));
+                      }}
+                      className="w-full p-2 border rounded-lg bg-white dark:bg-slate-800 font-mono text-xs"
+                    />
+                    {personType === 'PJ' && (
+                      <button
+                        type="button"
+                        onClick={handleCnpjLookup}
+                        disabled={isSearchingCnpj || document.replace(/\D/g, '').length !== 14}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none text-white rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 shadow-sm transition-all"
+                        title="Buscar dados cadastrais da empresa na Receita Federal"
+                      >
+                        {isSearchingCnpj ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Buscando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-3.5 h-3.5" />
+                            <span>Buscar CNPJ</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="font-semibold block mb-1">
@@ -377,7 +492,7 @@ export const ClientsScreen: React.FC = () => {
                     type="text"
                     value={rgIe}
                     onChange={(e) => setRgIe(e.target.value)}
-                    className="w-full p-2 border rounded-lg bg-white dark:bg-slate-800"
+                    className="w-full p-2 border rounded-lg bg-white dark:bg-slate-800 text-xs"
                   />
                 </div>
               </div>
