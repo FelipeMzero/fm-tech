@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   UserCog,
   FileClock,
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,7 +26,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { products, serviceOrders } = useAppStore();
+  const { products, serviceOrders, logout } = useAppStore();
 
   // Quantidade de produtos com estoque baixo
   const lowStockCount = products.filter(p => p.current_stock <= p.min_stock).length;
@@ -99,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         })}
       </div>
 
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-2">
         <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/60 space-y-1">
           <div className="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
             <span>Prestador PF</span>
@@ -109,6 +110,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             Documentos e recibos gerados exclusivamente com <strong>CPF</strong> do técnico.
           </p>
         </div>
+
+        <button
+          onClick={logout}
+          className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 transition-colors active:scale-95"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Sair da Conta</span>
+        </button>
       </div>
     </aside>
   );

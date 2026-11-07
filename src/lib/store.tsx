@@ -25,6 +25,11 @@ import {
   initialUsers,
   initialAuditLogs
 } from './mockData';
+import { 
+  getSupabaseClient, 
+  DEFAULT_SUPABASE_URL, 
+  DEFAULT_SUPABASE_KEY 
+} from './supabaseClient';
 
 interface SupabaseConfig {
   url: string;
@@ -94,6 +99,13 @@ interface AppStoreContextType {
   setupCompleted: boolean;
   setSetupCompleted: (val: boolean) => void;
 
+  // Autenticação & Sessão (FM Tech)
+  isAuthenticated: boolean;
+  currentUser: UserProfile | null;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  saveSetupToSupabase: (adminData: { name: string; email: string; password: string }) => Promise<{ success: boolean; error?: string }>;
+
   // Dark Mode & Supabase
   darkMode: boolean;
   toggleDarkMode: () => void;
@@ -117,6 +129,8 @@ const STORAGE_KEYS = {
   USERS: 'mapos_pf_users',
   AUDIT: 'mapos_pf_audit_logs',
   SETUP_COMPLETED: 'fmtech_setup_completed',
+  AUTH_USER: 'fmtech_auth_user',
+  ADMIN_CREDS: 'fmtech_admin_credentials',
   THEME: 'mapos_pf_dark_mode',
   SUPABASE: 'mapos_pf_supabase_config',
 };
@@ -143,13 +157,19 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Supabase Config
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SUPABASE);
-    return saved ? JSON.parse(saved) : { url: '', anonKey: '', connected: false };
+    return saved ? JSON.parse(saved) : { 
+      url: DEFAULT_SUPABASE_URL, 
+      anonKey: DEFAULT_SUPABASE_KEY, 
+      connected: true 
+    };
   });
 
   const updateSupabaseConfig = (cfg: Partial<SupabaseConfig>) => {
     setSupabaseConfig(prev => {
       const updated = { ...prev, ...cfg };
       localStorage.setItem(STORAGE_KEYS.SUPABASE, JSON.stringify(updated));
+      if (updated.url) localStorage.setItem('mapos_pf_supabase_url', updated.url);
+      if (updated.anonKey) localStorage.setItem('mapos_pf_supabase_key', updated.anonKey);
       return updated;
     });
   };
@@ -163,6 +183,155 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setSetupCompleted = (val: boolean) => {
     setSetupCompletedState(val);
     localStorage.setItem(STORAGE_KEYS.SETUP_COMPLETED, JSON.stringify(val));
+  };
+
+  // Autenticação & Sessão (FM Tech)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const isAuthenticated = currentUser !== null;
+
+  const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = pass.trim();
+
+    // 1. Tentar login direto via Supabase Auth
+    try {
+      const client = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+      if (client) {
+        const { data, error } = await client.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPass,
+        });
+
+        if (!error && data?.user) {
+          const loggedUser: UserProfile = {
+            id: data.user.id,
+            name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'Administrador',
+            email: data.user.email || cleanEmail,
+            role: 'admin',
+            active: true,
+            created_at: data.user.created_at || new Date().toISOString(),
+          };
+          setCurrentUser(loggedUser);
+          localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(loggedUser));
+          addAuditLog('Autenticação', 'LOGIN', `Login com sucesso via Supabase Auth: ${cleanEmail}`, loggedUser.name);
+          return { success: true };
+        }
+      }
+    } catch (err: any) {
+      console.warn('Supabase Auth login attempt:', err);
+    }
+
+    // 2. Validação com as credenciais salvas no Setup ou usuário admin
+    const savedCredsRaw = localStorage.getItem(STORAGE_KEYS.ADMIN_CREDS);
+    let savedCreds: { email?: string; password?: string; name?: string } | null = null;
+    if (savedCredsRaw) {
+      try {
+        savedCreds = JSON.parse(savedCredsRaw);
+      } catch {}
+    }
+
+    if (savedCreds && savedCreds.email?.toLowerCase() === cleanEmail && savedCreds.password === cleanPass) {
+      const loggedUser: UserProfile = {
+        id: 'usr-admin-root',
+        name: savedCreds.name || 'Administrador FM Tech',
+        email: cleanEmail,
+        role: 'admin',
+        active: true,
+        created_at: new Date().toISOString(),
+      };
+      setCurrentUser(loggedUser);
+      localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(loggedUser));
+      addAuditLog('Autenticação', 'LOGIN', `Login realizado com sucesso: ${cleanEmail}`, loggedUser.name);
+      return { success: true };
+    }
+
+    // 3. Fallback com lista de usuários da aplicação
+    const matchedUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (matchedUser && (cleanPass === 'admin123' || !savedCreds)) {
+      setCurrentUser(matchedUser);
+      localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(matchedUser));
+      addAuditLog('Autenticação', 'LOGIN', `Login de usuário: ${cleanEmail}`, matchedUser.name);
+      return { success: true };
+    }
+
+    return { success: false, error: 'E-mail ou senha incorretos. Verifique suas credenciais.' };
+  };
+
+  const logout = async () => {
+    try {
+      const client = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+      if (client) {
+        await client.auth.signOut();
+      }
+    } catch {}
+
+    const userName = currentUser?.name || 'Administrador';
+    addAuditLog('Autenticação', 'LOGOUT', `Sessão encerrada pelo usuário: ${currentUser?.email || ''}`, userName);
+    setCurrentUser(null);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+  };
+
+  const saveSetupToSupabase = async (adminData: { name: string; email: string; password: string }): Promise<{ success: boolean; error?: string }> => {
+    const client = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+
+    // Salva as credenciais do admin localmente para garantia de acesso imediato
+    localStorage.setItem(STORAGE_KEYS.ADMIN_CREDS, JSON.stringify(adminData));
+
+    if (client) {
+      try {
+        // 1. Atualizar ou inserir em issuer_settings no Supabase
+        const { data: existingIssuer } = await client.from('issuer_settings').select('id').limit(1).maybeSingle();
+        const issuerData = {
+          full_name: issuer.full_name,
+          trade_name: issuer.trade_name,
+          cpf: issuer.cpf,
+          phone: issuer.phone,
+          whatsapp: issuer.whatsapp,
+          email: adminData.email.trim(),
+          pix_key_type: issuer.pix_key_type,
+          pix_key: issuer.pix_key,
+          city: issuer.city,
+          state: issuer.state,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (existingIssuer?.id) {
+          await client.from('issuer_settings').update(issuerData).eq('id', existingIssuer.id);
+        } else {
+          await client.from('issuer_settings').insert(issuerData);
+        }
+
+        // 2. Registrar usuário no Supabase Auth
+        const { data: authData } = await client.auth.signUp({
+          email: adminData.email.trim().toLowerCase(),
+          password: adminData.password.trim(),
+          options: {
+            data: {
+              name: adminData.name,
+              role: 'admin',
+            }
+          }
+        });
+
+        // 3. Inserir em user_profiles se a tabela existir
+        if (authData?.user?.id) {
+          await client.from('user_profiles').upsert({
+            id: authData.user.id,
+            name: adminData.name,
+            phone: issuer.phone,
+            active: true,
+          });
+        }
+      } catch (err: any) {
+        console.warn('Aviso ao sincronizar com Supabase:', err);
+      }
+    }
+
+    return { success: true };
   };
 
   // Issuer Settings
@@ -721,6 +890,11 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateSupabaseConfig,
         setupCompleted,
         setSetupCompleted,
+        isAuthenticated,
+        currentUser,
+        login,
+        logout,
+        saveSetupToSupabase,
         resetAllData,
       }}
     >

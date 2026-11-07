@@ -17,12 +17,14 @@ import { DatabaseScreen } from './components/screens/DatabaseScreen';
 import { UsersScreen } from './components/screens/UsersScreen';
 import { AuditScreen } from './components/screens/AuditScreen';
 import { SetupScreen } from './components/screens/SetupScreen';
+import { LoginScreen } from './components/screens/LoginScreen';
 import { OSFormModal } from './components/os/OSFormModal';
 import { ServiceOrder } from './lib/types';
 
 export const App: React.FC = () => {
-  const { serviceOrders, setupCompleted, setSetupCompleted } = useAppStore();
+  const { serviceOrders, setupCompleted, setSetupCompleted, isAuthenticated } = useAppStore();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [isOpeningSetup, setIsOpeningSetup] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState<boolean>(false);
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
@@ -46,13 +48,29 @@ export const App: React.FC = () => {
     setActiveTab('portal');
   };
 
-  // Tela ao ser montada a aplicação: Setup Inicial do FM Tech (Supabase + Admin)
-  if (!setupCompleted || activeTab === 'setup') {
+  // 1. Tela de Setup Inicial do FM Tech (Supabase + Dados + Admin)
+  if (!setupCompleted || isOpeningSetup || activeTab === 'setup') {
     return (
       <SetupScreen
         onComplete={() => {
           setSetupCompleted(true);
+          setIsOpeningSetup(false);
+          // Redireciona diretamente para a tela de Login conforme solicitado
           setActiveTab('dashboard');
+        }}
+      />
+    );
+  }
+
+  // 2. Tela de Login obrigatória após configurar
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        onSuccess={() => {
+          setActiveTab('dashboard');
+        }}
+        onOpenSetup={() => {
+          setIsOpeningSetup(true);
         }}
       />
     );

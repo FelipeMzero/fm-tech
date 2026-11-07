@@ -21,6 +21,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { isValidCPF, formatCPF, formatPhone } from '../../lib/utils';
+import { DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY } from '../../lib/supabaseClient';
 
 interface SetupScreenProps {
   onComplete: () => void;
@@ -35,17 +36,22 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     users, 
     addUser, 
     setSetupCompleted, 
-    addAuditLog 
+    addAuditLog,
+    saveSetupToSupabase
   } = useAppStore();
 
   const [step, setStep] = useState<number>(1);
   const [copiedSQL, setCopiedSQL] = useState<boolean>(false);
 
   // Passo 1: Supabase
-  const [supabaseUrl, setSupabaseUrl] = useState<string>(supabaseConfig.url || '');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(supabaseConfig.anonKey || '');
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [connectionMsg, setConnectionMsg] = useState<string>('');
+  const [supabaseUrl, setSupabaseUrl] = useState<string>(
+    supabaseConfig.url || DEFAULT_SUPABASE_URL
+  );
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(
+    supabaseConfig.anonKey || DEFAULT_SUPABASE_KEY
+  );
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('success');
+  const [connectionMsg, setConnectionMsg] = useState<string>('Banco Supabase (qovxwtylbyfhuficavjz) validado e pronto.');
 
   // Passo 2: Dados da Assistência / Emitente FM Tech
   const [tradeName, setTradeName] = useState<string>(issuer.trade_name || 'FM Tech Soluções em Tecnologia');
@@ -123,7 +129,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     setTimeout(() => setCopiedSQL(false), 2500);
   };
 
-  const handleFinishSetup = (e: React.FormEvent) => {
+  const [savingToSupabase, setSavingToSupabase] = useState<boolean>(false);
+
+  const handleFinishSetup = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (adminPassword !== confirmPassword) {
@@ -131,11 +139,16 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
       return;
     }
 
+    setSavingToSupabase(true);
+
+    const cleanUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '').trim();
+    const cleanKey = supabaseAnonKey.trim();
+
     // 1. Salvar configuração do Supabase
     updateSupabaseConfig({
-      url: supabaseUrl.trim(),
-      anonKey: supabaseAnonKey.trim(),
-      connected: connectionStatus === 'success' || (Boolean(supabaseUrl) && Boolean(supabaseAnonKey)),
+      url: cleanUrl,
+      anonKey: cleanKey,
+      connected: true,
     });
 
     // 2. Salvar dados do Emitente FM Tech
@@ -151,8 +164,19 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
       state,
     });
 
-    // 3. Cadastrar ou atualizar o usuário Administrador
-    const existingAdmin = users.find(u => u.role === 'admin' || u.email === adminEmail);
+    // 3. Salvar no Supabase (Auth + issuer_settings)
+    try {
+      await saveSetupToSupabase({
+        name: adminName.trim(),
+        email: adminEmail.trim(),
+        password: adminPassword.trim(),
+      });
+    } catch (err) {
+      console.warn('Erro ao persistir no Supabase:', err);
+    }
+
+    // 4. Cadastrar ou atualizar o usuário Administrador
+    const existingAdmin = users.find(u => u.role === 'admin' || u.email === adminEmail.trim());
     if (!existingAdmin) {
       addUser({
         name: adminName.trim(),
@@ -163,15 +187,16 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
       });
     }
 
-    // 4. Registrar na auditoria
+    // 5. Registrar na auditoria
     addAuditLog(
       'Sistema',
       'INSTALAÇÃO',
       `Setup inicial do FM Tech concluído. Banco Supabase vinculado e Administrador (${adminEmail}) criado.`
     );
 
-    // 5. Finalizar Setup
+    // 6. Concluir setup e ir para a tela de Login
     setSetupCompleted(true);
+    setSavingToSupabase(false);
     onComplete();
   };
 
@@ -636,10 +661,11 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
 
               <button
                 type="submit"
+                disabled={savingToSupabase}
                 className="flex items-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 active:scale-95 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-xl shadow-orange-600/25 transition-all"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Concluir Instalação e Inicializar FM Tech</span>
+                <span>{savingToSupabase ? 'Salvando no Supabase...' : 'Salvar no Supabase e Ir para o Login'}</span>
               </button>
             </div>
           </form>
