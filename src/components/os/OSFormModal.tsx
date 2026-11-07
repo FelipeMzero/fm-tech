@@ -600,6 +600,7 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
                     <option value="aguardando_pecas">Aguardando Peças</option>
                     <option value="aguardando_aprovacao">Aguardando Aprovação do Cliente</option>
                     <option value="aprovado">Aprovado pelo Cliente</option>
+                    <option value="aguardando_pagamento">Aguardando Pagamento</option>
                     <option value="finalizado">Finalizado / Pronto para Retirada</option>
                     <option value="entregue">Entregue ao Cliente</option>
                     <option value="cancelado">Cancelado</option>

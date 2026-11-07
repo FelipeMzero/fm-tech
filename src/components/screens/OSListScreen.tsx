@@ -45,6 +45,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
     serviceOrders,
     clients,
     deleteServiceOrder,
+    updateServiceOrder,
     invoiceServiceOrder,
     issuer,
     mercadoPago,
@@ -66,13 +67,23 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
   const [mpModalOS, setMpModalOS] = useState<ServiceOrder | null>(null);
   const [mpLoading, setMpLoading] = useState<boolean>(false);
   const [mpCopied, setMpCopied] = useState<boolean>(false);
+  const [copiedOSId, setCopiedOSId] = useState<string | null>(null);
+
+  const handleCopyPaymentLink = (url: string, osId: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedOSId(osId);
+    setTimeout(() => setCopiedOSId(null), 2500);
+  };
 
   const handleOpenMPModal = async (os: ServiceOrder) => {
     setMpModalOS(os);
     if (!os.mp_payment_url) {
       setMpLoading(true);
-      await generateOSMercadoPagoLink(os.id);
+      const res = await generateOSMercadoPagoLink(os.id);
       setMpLoading(false);
+      if (res.success && os.status !== 'finalizado') {
+        updateServiceOrder(os.id, { status: 'aguardando_pagamento' });
+      }
     }
   };
 
@@ -126,7 +137,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Topo com Título e Ação */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -168,7 +179,8 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
               { id: 'todos', label: 'Todos' },
               { id: 'orcamento', label: 'Orçamentos' },
               { id: 'em_andamento', label: 'Em Bancada' },
-              { id: 'aguardando_aprovacao', label: 'Aguardando' },
+              { id: 'aguardando_aprovacao', label: 'Aguardando Aprovação' },
+              { id: 'aguardando_pagamento', label: 'Aguardando Pagamento' },
               { id: 'finalizado', label: 'Prontos' },
               { id: 'entregue', label: 'Entregues' },
             ].map((tab) => (
@@ -230,10 +242,21 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-bold border ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}>
                       {statusInfo.label}
                     </span>
+
+                    {/* Botão rápido para mudar status para Aguardando Pagamento */}
+                    {os.status !== 'aguardando_pagamento' && os.status !== 'finalizado' && os.status !== 'cancelado' && (
+                      <button
+                        onClick={() => updateServiceOrder(os.id, { status: 'aguardando_pagamento' })}
+                        className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-800 hover:bg-amber-100 transition"
+                        title="Marcar status como Aguardando Pagamento"
+                      >
+                        + Aguardar Pagamento
+                      </button>
+                    )}
 
                     {os.invoiced ? (
                       <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
@@ -250,6 +273,65 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* Banner Interativo: Aguardando Pagamento / Copiar Link e Confirmar */}
+                {(os.status === 'aguardando_pagamento' || (os.mp_payment_url && !os.invoiced && os.status !== 'finalizado')) && (
+                  <div className="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-amber-500 text-white rounded-lg shadow-sm shrink-0">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-amber-950 dark:text-amber-200 text-xs">
+                            Aguardando Pagamento
+                          </span>
+                          <span className="text-[10px] bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 px-2 py-0.5 rounded font-mono font-bold">
+                            {formatCurrency(os.total_amount)}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-amber-800/90 dark:text-amber-300">
+                          {os.mp_payment_url ? 'Cobrança Mercado Pago Checkout Pro gerada' : 'Gere a cobrança para enviar ao cliente'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto">
+                      {os.mp_payment_url ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPaymentLink(os.mp_payment_url!, os.id)}
+                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 dark:hover:bg-slate-700 transition shadow-sm active:scale-95"
+                          title="Copiar link de pagamento do Mercado Pago"
+                        >
+                          {copiedOSId === os.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedOSId === os.id ? 'Link Copiado!' : 'Copiar Link de Cobrança'}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMPModal(os)}
+                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#009ee3] hover:bg-sky-600 text-white text-xs font-bold shadow-sm transition active:scale-95"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          <span>Gerar Link Mercado Pago</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          confirmMercadoPagoPayment(os.id, undefined, 'pix');
+                        }}
+                        className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition active:scale-95"
+                        title="Confirmar pagamento manualmente e faturar OS"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Confirmar Manualmente</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Detalhes do Defeito e Itens */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -284,12 +366,12 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Botões de Ação */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                  <div className="flex items-center gap-1">
+                {/* Botões de Ação Responsivos (Otimizados para Telefones e Tablets) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 w-full sm:w-auto">
                     <button
                       onClick={() => onOpenPortal(os.public_tracking_token)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
                       title="Abrir página de rastreamento do cliente"
                     >
                       <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
@@ -298,7 +380,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
 
                     <button
                       onClick={() => handleShareWhatsApp(os)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 text-xs font-semibold"
                       title="Enviar status da OS formatado para o WhatsApp do cliente"
                     >
                       <Share2 className="w-3.5 h-3.5" />
@@ -308,7 +390,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                     {mercadoPago.enabled && (
                       <button
                         onClick={() => handleOpenMPModal(os)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100"
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 text-xs font-semibold"
                         title="Gerar e compartilhar link de pagamento Mercado Pago"
                       >
                         <CreditCard className="w-3.5 h-3.5 text-sky-600" />
@@ -318,7 +400,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
 
                     <button
                       onClick={() => setPrintA4OS(os)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
                     >
                       <Printer className="w-3.5 h-3.5 text-indigo-500" />
                       <span>Imprimir A4</span>
@@ -326,17 +408,17 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
 
                     <button
                       onClick={() => setPrintThermalOS(os)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
                     >
                       <Receipt className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Cupom Térmico</span>
+                      <span>Térmica</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-end gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
                     <button
                       onClick={() => setEditingOS(os)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-semibold hover:bg-blue-100"
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-semibold hover:bg-blue-100 text-xs"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Editar</span>
@@ -348,7 +430,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                           deleteServiceOrder(os.id);
                         }
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
+                      className="p-2 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
                       title="Excluir OS"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -172,7 +172,7 @@ export const MercadoPagoScreen: React.FC = () => {
   const ordersWithMP = serviceOrders.filter(o => o.mp_payment_url || o.mp_payment_status || o.invoiced);
 
   return (
-    <div className="space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Top Banner Mercado Pago */}
       <div className="bg-gradient-to-r from-[#009ee3] via-[#0081bb] to-[#004e82] rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 transform skew-x-12 pointer-events-none" />

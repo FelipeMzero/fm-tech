@@ -22,6 +22,7 @@ import { SetupScreen } from './components/screens/SetupScreen';
 import { LoginScreen } from './components/screens/LoginScreen';
 import { OSFormModal } from './components/os/OSFormModal';
 import { ServiceOrder } from './lib/types';
+import { LayoutDashboard, Wrench, ShoppingCart, CreditCard, Menu } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { serviceOrders, setupCompleted, setSetupCompleted, isAuthenticated } = useAppStore();
@@ -31,6 +32,7 @@ export const App: React.FC = () => {
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState<boolean>(false);
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
   const [portalToken, setPortalToken] = useState<string>('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   const [isPublicAccess, setIsPublicAccess] = useState<boolean>(() => {
     const hash = window.location.hash;
@@ -165,8 +167,13 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased">
-      {/* Barra Lateral / Navegação */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {/* Barra Lateral / Navegação (Desktop + Drawer Mobile) */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOpenMobile={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+      />
 
       {/* Área Central / Conteúdo */}
       <div className="flex flex-col flex-1 h-full min-w-0 overflow-hidden">
@@ -176,9 +183,10 @@ export const App: React.FC = () => {
           setActiveTab={setActiveTab}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
+          onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
         />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-20">
           {activeTab === 'dashboard' && (
             <DashboardScreen
               setActiveTab={setActiveTab}
@@ -225,6 +233,57 @@ export const App: React.FC = () => {
 
           {activeTab === 'database' && <DatabaseScreen />}
         </main>
+
+        {/* Barra de Navegação Inferior Mobile (Otimizada para Celulares) */}
+        <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex items-center justify-around py-1.5 px-2 md:hidden no-print shadow-lg">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition ${
+              activeTab === 'dashboard' ? 'text-orange-600 dark:text-orange-400 font-bold' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5 mb-0.5" />
+            <span>Início</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('os')}
+            className={`flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition ${
+              activeTab === 'os' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <Wrench className="w-5 h-5 mb-0.5" />
+            <span>Ordens OS</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('pos')}
+            className={`flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition ${
+              activeTab === 'pos' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <ShoppingCart className="w-5 h-5 mb-0.5" />
+            <span>PDV</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('mercadopago')}
+            className={`flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition ${
+              activeTab === 'mercadopago' ? 'text-sky-600 dark:text-sky-400 font-bold' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <CreditCard className="w-5 h-5 mb-0.5" />
+            <span>Mercado Pago</span>
+          </button>
+
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+          >
+            <Menu className="w-5 h-5 mb-0.5" />
+            <span>Mais</span>
+          </button>
+        </nav>
       </div>
 
       {/* Modal Abertura / Edição de Ordem de Serviço */}

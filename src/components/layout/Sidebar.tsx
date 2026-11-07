@@ -19,16 +19,24 @@ import {
   Settings,
   LogOut,
   KeyRound,
-  CreditCard
+  CreditCard,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { products, serviceOrders, licenses, logout } = useAppStore();
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  setActiveTab,
+  isOpenMobile = false,
+  onCloseMobile
+}) => {
+  const { products, serviceOrders, licenses, logout, issuer } = useAppStore();
 
   // Quantidade de produtos com estoque baixo
   const lowStockCount = products.filter(p => p.current_stock <= p.min_stock).length;
@@ -57,10 +65,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'setup', label: 'Instalação / Setup', icon: Settings, sub: 'Supabase & Admin' },
   ];
 
-  return (
-    <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between no-print select-none">
-      <div className="p-3 space-y-1">
-        <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+  const renderContent = (isMobile: boolean = false) => (
+    <>
+      <div className="p-3 space-y-1 overflow-y-auto flex-1">
+        {isMobile && (
+          <div className="flex items-center justify-between pb-3 px-2 border-b border-slate-200 dark:border-slate-800 mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-orange-600 flex items-center justify-center text-white font-bold text-xs">
+                FM
+              </div>
+              <span className="font-bold text-slate-900 dark:text-white text-sm">
+                {issuer.trade_name || 'FM Tech'}
+              </span>
+            </div>
+            <button
+              onClick={onCloseMobile}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           Módulos do Sistema
         </div>
 
@@ -71,8 +98,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
+              onClick={() => {
+                setActiveTab(item.id);
+                if (isMobile) onCloseMobile?.();
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
                 isActive
                   ? 'bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 font-semibold shadow-sm border border-orange-200/60 dark:border-orange-800/60'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
@@ -125,6 +155,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           <span>Sair da Conta</span>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Versão Desktop: Barra Fixa Lateral */}
+      <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden md:flex flex-col justify-between no-print select-none">
+        {renderContent(false)}
+      </aside>
+
+      {/* Versão Mobile: Drawer / Gaveta Deslizante com Backdrop */}
+      {isOpenMobile && (
+        <div className="fixed inset-0 z-50 md:hidden flex no-print">
+          {/* Backdrop */}
+          <div
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+          />
+
+          {/* Drawer Menu */}
+          <div className="relative w-72 max-w-[85vw] bg-white dark:bg-slate-900 shadow-2xl flex flex-col justify-between z-10 animate-in slide-in-from-left duration-200">
+            {renderContent(true)}
+          </div>
+        </div>
+      )}
+    </>
   );
 };

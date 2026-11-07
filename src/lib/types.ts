@@ -7,6 +7,7 @@ export type OSStatus =
   | 'aguardando_pecas'
   | 'aguardando_aprovacao'
   | 'aprovado'
+  | 'aguardando_pagamento'
   | 'finalizado'
   | 'entregue'
   | 'cancelado';

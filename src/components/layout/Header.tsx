@@ -9,7 +9,8 @@ import {
   CheckCircle2, 
   ShieldAlert,
   Search,
-  LogOut
+  LogOut,
+  Menu
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -18,33 +19,45 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   searchTerm: string;
   setSearchTerm: (s: string) => void;
+  onToggleMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onNewOS,
   setActiveTab,
   searchTerm,
-  setSearchTerm
+  setSearchTerm,
+  onToggleMobileMenu
 }) => {
   const { darkMode, toggleDarkMode, issuer, supabaseConfig, logout } = useAppStore();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-4 py-2.5 transition-colors no-print">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-3 sm:px-4 py-2.5 transition-colors no-print">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Botão Menu Hamburger Mobile */}
+        <button
+          onClick={onToggleMobileMenu}
+          className="p-1.5 -ml-1 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden"
+          title="Abrir Menu"
+          aria-label="Abrir Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-md shadow-orange-500/20 font-bold text-xs tracking-tight">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-tr from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-md shadow-orange-500/20 font-bold text-xs tracking-tight shrink-0">
             FM
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-bold text-slate-900 dark:text-white leading-none text-base">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h1 className="font-bold text-slate-900 dark:text-white leading-none text-sm sm:text-base truncate max-w-[140px] sm:max-w-none">
                 {issuer.trade_name || 'FM Tech'}
               </h1>
-              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
-                Emitente CPF
+              <span className="text-[9px] sm:text-[10px] uppercase font-semibold px-1.5 py-0.2 sm:py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border border-orange-200 dark:border-orange-800 shrink-0">
+                CPF
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 hidden sm:flex items-center gap-1.5">
               <span>Técnico: <strong className="font-medium text-slate-700 dark:text-slate-300">{issuer.full_name}</strong></span>
               <span>•</span>
               <span>CPF: <strong className="font-mono text-slate-700 dark:text-slate-300">{issuer.cpf}</strong></span>
