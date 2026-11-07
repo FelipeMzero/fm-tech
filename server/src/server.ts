@@ -82,6 +82,63 @@ app.get('/api/public/os/:token', async (req: Request, res: Response) => {
   res.json({ os, issuer });
 });
 
+// 4. Endpoint Oficial de Webhooks do Mercado Pago (Recebe POST e responde HTTP 200 OK)
+app.all('/api/mercadopago/webhook', async (req: Request, res: Response) => {
+  console.log(`[Mercado Pago Webhook] Requisição recebida (${req.method}):`, req.body || req.query);
+
+  // Health check manual ou ping do painel do Mercado Pago
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      status: 'ok',
+      message: 'Endpoint de Webhook do Mercado Pago ativo e pronto para receber notificações POST.',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Notificação POST oficial do Mercado Pago (payment.created, payment.updated, etc.)
+  const body = req.body || {};
+  const topic = req.query.topic || body.type || body.action;
+  const paymentId = req.query.id || body.data?.id || body.id;
+
+  console.log(`[Mercado Pago Webhook] Tópico: ${topic}, ID: ${paymentId}`);
+
+  // Se houver ID de pagamento e token configurado, consulta a API e atualiza status
+  if (paymentId && (topic === 'payment' || String(body.action).startsWith('payment.'))) {
+    try {
+      const accessToken = process.env.MP_ACCESS_TOKEN;
+      if (accessToken) {
+        const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (mpRes.ok) {
+          const paymentData = await mpRes.json();
+          console.log(`[Mercado Pago Webhook] Pagamento #${paymentId} status: ${paymentData.status}`);
+          
+          if (paymentData.status === 'approved' && paymentData.external_reference) {
+            // external_reference: fmt_os_{id}_num_{os_number}_hash_{token}
+            const match = String(paymentData.external_reference).match(/fmt_os_([a-zA-Z0-9_-]+)_num_/);
+            const osId = match ? match[1] : null;
+            if (osId) {
+              await supabaseAdmin.from('service_orders').update({
+                status: 'finalizado',
+                invoiced: true,
+                mp_payment_id: String(paymentId),
+                mp_payment_status: 'approved'
+              }).eq('id', osId);
+              console.log(`[Mercado Pago Webhook] OS #${osId} atualizada para finalizado e faturada!`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Mercado Pago Webhook] Erro ao consultar pagamento na API:', err);
+    }
+  }
+
+  // O Mercado Pago exige resposta HTTP 200 (ou 201) em até 22 segundos
+  return res.status(200).send('OK');
+});
+
 const PORT = process.env.PORT || 3001;
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {

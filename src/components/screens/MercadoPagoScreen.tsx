@@ -428,8 +428,8 @@ export const MercadoPagoScreen: React.FC = () => {
             </div>
 
             {/* URL de Notificação IPN / Webhook */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   URL de Notificação Instantânea (Webhook / IPN)
                 </label>
@@ -438,9 +438,10 @@ export const MercadoPagoScreen: React.FC = () => {
                   onClick={handleResetWebhookUrl}
                   className="text-xs text-sky-600 dark:text-sky-400 hover:underline font-medium"
                 >
-                  Restaurar URL Padrão FM Tech
+                  Restaurar URL FM Tech
                 </button>
               </div>
+
               <div className="relative">
                 <input
                   type="text"
@@ -458,9 +459,26 @@ export const MercadoPagoScreen: React.FC = () => {
                   {copiedUrl ? 'Copiado!' : 'Copiar'}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                URL oficial configurada para sua aplicação: <strong className="text-sky-600 dark:text-sky-400">https://felipemzero.github.io/fm-tech/?webhook=mercadopago</strong>
-              </p>
+
+              {/* Box explicativo sobre 405 Method Not Allowed e GitHub Pages */}
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs space-y-2 text-amber-950 dark:text-amber-200">
+                <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-100">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Por que o teste do Mercado Pago retornou "405 Method Not Allowed"?</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+                  O <strong>GitHub Pages é uma hospedagem puramente estática</strong> e, por padrão de infraestrutura, só aceita requisições <code className="font-mono font-bold">GET</code>. O Mercado Pago envia o teste de Webhook como <code className="font-mono font-bold">HTTP POST</code>, o que causa o código <code className="font-mono font-bold">405</code> no servidor do GitHub.
+                </p>
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/60 text-[11px] space-y-1">
+                  <span className="font-bold text-slate-900 dark:text-white block">Como funciona o pagamento na FM Tech:</span>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    ✓ <strong>Baixa Automática Sem Necessidade de Servidor:</strong> Quando o cliente paga no Mercado Pago, ele é redirecionado de volta para a OS com <code className="font-mono text-sky-600">mp_status=approved</code> e a OS é <strong>faturada e finalizada imediatamente</strong>.
+                  </p>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    ✓ <strong>Para aprovar o teste do painel do Mercado Pago:</strong> O Mercado Pago exige um endpoint que aceite POST. Você pode deixar o campo de Webhook vazio no Mercado Pago (já que as <code className="font-mono">back_urls</code> cuidam de tudo) ou usar um backend Node/Serverless que adicionamos no projeto em <code className="font-mono">/server/src/server.ts</code>.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Submit Bar */}

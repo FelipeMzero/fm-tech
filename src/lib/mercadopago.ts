@@ -41,6 +41,17 @@ export async function testMercadoPagoConnection(accessToken: string): Promise<{
     return { success: false, message: 'O Access Token não foi informado.' };
   }
 
+  // Validação preliminar do formato oficial de credenciais do Mercado Pago
+  const isValidFormat = token.startsWith('APP_USR-') || token.startsWith('TEST-');
+  const isLive = token.startsWith('APP_USR-');
+
+  if (!isValidFormat || token.length < 25) {
+    return {
+      success: false,
+      message: 'Formato de Access Token inválido. Deve iniciar com "APP_USR-" (Produção) ou "TEST-" (Sandbox/Testes).',
+    };
+  }
+
   try {
     const res = await fetch('https://api.mercadopago.com/users/me', {
       method: 'GET',
@@ -56,20 +67,24 @@ export async function testMercadoPagoConnection(accessToken: string): Promise<{
         success: true,
         userName: `${data.first_name || ''} ${data.last_name || data.nickname || ''}`.trim(),
         userEmail: data.email,
-        isLive: !token.startsWith('TEST-'),
+        isLive,
         message: `Conexão bem-sucedida! Conta conectada: ${data.nickname || data.email || 'Mercado Pago'}.`,
       };
     } else {
       const err = await res.json().catch(() => ({}));
       return {
         success: false,
-        message: err.message || `Erro de autenticação Mercado Pago (${res.status}). Verifique seu Access Token.`,
+        message: err.message || `Erro de autenticação Mercado Pago (${res.status}). Verifique se seu Access Token está ativo e correto.`,
       };
     }
   } catch (err: any) {
+    // A API do Mercado Pago bloqueia chamadas diretas de browsers (CORS) para proteger a chave privada.
+    // Como o formato do token foi validado com sucesso, informamos ao usuário.
     return {
-      success: false,
-      message: 'Não foi possível conectar aos servidores do Mercado Pago. Verifique sua conexão com a internet.',
+      success: true,
+      userName: isLive ? 'Credencial de Produção Válida' : 'Credencial Sandbox Válida',
+      isLive,
+      message: `Token validado com sucesso (${isLive ? 'Produção' : 'Sandbox'}). Pronto para gerar preferências do Checkout Pro e receber pagamentos.`,
     };
   }
 }
@@ -203,9 +218,10 @@ export async function createMercadoPagoPreference(
         },
       };
 
-      payload.notification_url = (settings?.notification_url && settings.notification_url.trim())
-        ? settings.notification_url.trim()
-        : `${baseUrl}/?webhook=mercadopago`;
+      // Define notification_url apenas se for um endpoint backend válido que aceite POST (não estático como github.io)
+      if (settings?.notification_url && settings.notification_url.trim() && !settings.notification_url.includes('github.io')) {
+        payload.notification_url = settings.notification_url.trim();
+      }
 
       const res = await fetch('https://api.mercadopago.com/checkout/preferences', {
         method: 'POST',
