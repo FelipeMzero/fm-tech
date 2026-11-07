@@ -8,6 +8,7 @@ import { ClientPortalScreen } from './components/screens/ClientPortalScreen';
 import { POSScreen } from './components/screens/POSScreen';
 import { ClientsScreen } from './components/screens/ClientsScreen';
 import { ProductsScreen } from './components/screens/ProductsScreen';
+import { LicensesScreen } from './components/screens/LicensesScreen';
 import { ServicesScreen } from './components/screens/ServicesScreen';
 import { FinancialScreen } from './components/screens/FinancialScreen';
 import { ReportsScreen } from './components/screens/ReportsScreen';
@@ -117,6 +118,8 @@ export const App: React.FC = () => {
           {activeTab === 'clients' && <ClientsScreen />}
 
           {activeTab === 'products' && <ProductsScreen />}
+
+          {activeTab === 'licenses' && <LicensesScreen />}
 
           {activeTab === 'services' && <ServicesScreen />}
 

@@ -21,7 +21,8 @@ import {
   Search, 
   Check, 
   Copy,
-  ExternalLink
+  ExternalLink,
+  KeyRound
 } from 'lucide-react';
 
 interface ClientPortalScreenProps {
@@ -34,6 +35,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialT
   const [pixQrUrl, setPixQrUrl] = useState<string>('');
   const [pixPayloadStr, setPixPayloadStr] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [approvedSuccess, setApprovedSuccess] = useState<boolean>(false);
 
   // Busca a OS pelo token
@@ -305,6 +307,48 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialT
                         <td className="p-3 text-center">{p.quantity}</td>
                         <td className="p-3 text-right">{formatCurrency(p.unit_price)}</td>
                         <td className="p-3 text-right font-semibold">{formatCurrency(p.subtotal)}</td>
+                      </tr>
+                    ))}
+                    {currentOS.licenses && currentOS.licenses.map((lic, idx) => (
+                      <tr key={`lic-${idx}`} className="bg-emerald-50/30 dark:bg-emerald-950/20">
+                        <td className="p-3">
+                          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{lic.name}</span>
+                            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded">
+                              Licença Digital
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <code className="text-xs font-mono font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-emerald-800 dark:text-emerald-300">
+                              {lic.license_key}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(lic.license_key);
+                                setCopiedKeyId(lic.id);
+                                setTimeout(() => setCopiedKeyId(null), 2000);
+                              }}
+                              className="text-[10px] font-bold text-slate-500 hover:text-emerald-600 flex items-center gap-1 bg-white dark:bg-slate-800 border px-1.5 py-0.5 rounded"
+                            >
+                              {copiedKeyId === lic.id ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-emerald-600">Copiada!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copiar Chave</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center font-medium">1</td>
+                        <td className="p-3 text-right">{formatCurrency(lic.unit_price)}</td>
+                        <td className="p-3 text-right font-semibold">{formatCurrency(lic.unit_price)}</td>
                       </tr>
                     ))}
                   </tbody>

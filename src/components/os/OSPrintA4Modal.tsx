@@ -216,6 +216,30 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
               </table>
             </div>
           )}
+
+          {os.licenses && os.licenses.length > 0 && (
+            <div>
+              <div className="font-bold text-[11px] uppercase text-emerald-800 mb-1">Licenças e Produtos Digitais</div>
+              <table className="w-full text-left border-collapse border border-slate-200 text-[11px]">
+                <thead className="bg-slate-100 font-semibold">
+                  <tr>
+                    <th className="p-1.5 border border-slate-200">Produto Digital</th>
+                    <th className="p-1.5 border border-slate-200 font-mono">Chave de Ativação (Serial Key)</th>
+                    <th className="p-1.5 border border-slate-200 text-right w-24">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {os.licenses.map((lic, idx) => (
+                    <tr key={idx} className="border-b border-slate-200">
+                      <td className="p-1.5 border border-slate-200 font-medium">{lic.name}</td>
+                      <td className="p-1.5 border border-slate-200 font-mono font-bold text-slate-800">{lic.license_key}</td>
+                      <td className="p-1.5 border border-slate-200 text-right font-medium">{formatCurrency(lic.unit_price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Totais e Pagamento PIX com QR Code */}
@@ -251,6 +275,12 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
               <span>Total Peças:</span>
               <span>{formatCurrency(os.products_total)}</span>
             </div>
+            {((os.licenses_total && os.licenses_total > 0) || (os.licenses && os.licenses.length > 0)) && (
+              <div className="flex justify-between text-slate-600">
+                <span>Total Licenças:</span>
+                <span>{formatCurrency(os.licenses_total || os.licenses?.reduce((s, l) => s + l.unit_price, 0) || 0)}</span>
+              </div>
+            )}
             {os.discount_value > 0 && (
               <div className="flex justify-between text-emerald-700 font-medium">
                 <span>Desconto ({os.discount_type}):</span>

@@ -11,7 +11,8 @@ import {
   StockMovement,
   PaymentMethod,
   UserProfile,
-  AuditLog
+  AuditLog,
+  DigitalLicense
 } from './types';
 import {
   initialIssuerSettings,
@@ -23,7 +24,8 @@ import {
   initialFinancialTransactions,
   initialSales,
   initialUsers,
-  initialAuditLogs
+  initialAuditLogs,
+  initialDigitalLicenses
 } from './mockData';
 import { 
   getSupabaseClient, 
@@ -55,6 +57,14 @@ interface AppStoreContextType {
   deleteProduct: (id: string) => void;
   adjustStock: (productId: string, quantityChange: number, type: 'entrada' | 'saida' | 'ajuste', reason: string) => void;
   stockMovements: StockMovement[];
+
+  // Licenças Digitais (Produtos Digitais & Keys)
+  licenses: DigitalLicense[];
+  addLicense: (license: Omit<DigitalLicense, 'id' | 'created_at'>) => DigitalLicense;
+  updateLicense: (id: string, patch: Partial<DigitalLicense>) => void;
+  deleteLicense: (id: string) => void;
+  assignLicenseToOS: (licenseId: string, osId: string, osNumber: number, clientId?: string, clientName?: string) => void;
+  releaseLicenseFromOS: (licenseId: string) => void;
 
   // Serviços
   services: ServiceItem[];
@@ -120,6 +130,7 @@ const STORAGE_KEYS = {
   ISSUER: 'mapos_pf_issuer',
   CLIENTS: 'mapos_pf_clients',
   PRODUCTS: 'mapos_pf_products',
+  LICENSES: 'fmtech_digital_licenses',
   SERVICES: 'mapos_pf_services',
   WARRANTY: 'mapos_pf_warranty',
   OS: 'mapos_pf_orders',
@@ -449,6 +460,78 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(STORAGE_KEYS.MOVEMENTS, JSON.stringify(newMovements));
   };
 
+  // Licenças Digitais (Produtos Digitais & Keys)
+  const [licenses, setLicenses] = useState<DigitalLicense[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.LICENSES);
+    return saved ? JSON.parse(saved) : initialDigitalLicenses;
+  });
+
+  const addLicense = (lic: Omit<DigitalLicense, 'id' | 'created_at'>): DigitalLicense => {
+    const newLic: DigitalLicense = {
+      ...lic,
+      id: 'lic-' + Date.now(),
+      created_at: new Date().toISOString(),
+    };
+    const updated = [newLic, ...licenses];
+    setLicenses(updated);
+    localStorage.setItem(STORAGE_KEYS.LICENSES, JSON.stringify(updated));
+    return newLic;
+  };
+
+  const updateLicense = (id: string, patch: Partial<DigitalLicense>) => {
+    const updated = licenses.map(l => l.id === id ? { ...l, ...patch } : l);
+    setLicenses(updated);
+    localStorage.setItem(STORAGE_KEYS.LICENSES, JSON.stringify(updated));
+  };
+
+  const deleteLicense = (id: string) => {
+    const updated = licenses.filter(l => l.id !== id);
+    setLicenses(updated);
+    localStorage.setItem(STORAGE_KEYS.LICENSES, JSON.stringify(updated));
+  };
+
+  const assignLicenseToOS = (licenseId: string, osId: string, osNumber: number, clientId?: string, clientName?: string) => {
+    setLicenses(prev => {
+      const updated = prev.map(l => {
+        if (l.id === licenseId) {
+          return {
+            ...l,
+            status: 'em_uso' as const,
+            service_order_id: osId,
+            os_number: osNumber,
+            client_id: clientId,
+            client_name: clientName,
+            assigned_at: new Date().toISOString(),
+          };
+        }
+        return l;
+      });
+      localStorage.setItem(STORAGE_KEYS.LICENSES, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const releaseLicenseFromOS = (licenseId: string) => {
+    setLicenses(prev => {
+      const updated = prev.map(l => {
+        if (l.id === licenseId) {
+          return {
+            ...l,
+            status: 'disponivel' as const,
+            service_order_id: undefined,
+            os_number: undefined,
+            client_id: undefined,
+            client_name: undefined,
+            assigned_at: undefined,
+          };
+        }
+        return l;
+      });
+      localStorage.setItem(STORAGE_KEYS.LICENSES, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Services
   const [services, setServices] = useState<ServiceItem[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SERVICES);
@@ -537,12 +620,14 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       internal_observations: osData.internal_observations || '',
       services_total: osData.services_total || 0,
       products_total: osData.products_total || 0,
+      licenses_total: osData.licenses_total || (osData.licenses ? osData.licenses.reduce((s, l) => s + l.unit_price, 0) : 0),
       discount_type: osData.discount_type || 'R$',
       discount_value: osData.discount_value || 0,
       total_amount: osData.total_amount || 0,
       invoiced: false,
       services: osData.services || [],
       products: osData.products || [],
+      licenses: osData.licenses || [],
       attachments: osData.attachments || [],
       timeline: [
         {
@@ -565,6 +650,16 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     }
 
+    // Vincula licenças digitais atribuídas a esta OS
+    if (newOS.licenses && newOS.licenses.length > 0) {
+      const client = clients.find(c => c.id === newOS.client_id);
+      newOS.licenses.forEach(licItem => {
+        if (licItem.license_id) {
+          assignLicenseToOS(licItem.license_id, newOS.id, newOS.os_number, newOS.client_id, client?.name);
+        }
+      });
+    }
+
     const updated = [newOS, ...serviceOrders];
     setServiceOrders(updated);
     localStorage.setItem(STORAGE_KEYS.OS, JSON.stringify(updated));
@@ -582,6 +677,28 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (p.stock_deducted) {
           adjustStock(p.product_id, p.quantity, 'entrada', `Estorno automático por cancelamento da OS #${existing.os_number}`);
           p.stock_deducted = false;
+        }
+      });
+      // Libera licenças digitais vinculadas caso a OS seja cancelada
+      (existing.licenses || []).forEach(l => {
+        if (l.license_id) releaseLicenseFromOS(l.license_id);
+      });
+    }
+
+    // Se as licenças da OS foram alteradas
+    if (patch.licenses) {
+      const newLicIds = new Set(patch.licenses.map(l => l.license_id).filter(Boolean));
+      // Se alguma licença antiga foi removida da OS, libera de volta para o estoque
+      (existing.licenses || []).forEach(oldLic => {
+        if (oldLic.license_id && !newLicIds.has(oldLic.license_id)) {
+          releaseLicenseFromOS(oldLic.license_id);
+        }
+      });
+      // Vincula as novas licenças à OS
+      const client = clients.find(c => c.id === (patch.client_id || existing.client_id));
+      patch.licenses.forEach(newLic => {
+        if (newLic.license_id) {
+          assignLicenseToOS(newLic.license_id, existing.id, existing.os_number, existing.client_id, client?.name);
         }
       });
     }
@@ -625,6 +742,12 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           adjustStock(p.product_id, p.quantity, 'entrada', `Estorno por exclusão da OS #${existing.os_number}`);
         }
       });
+      // Libera licenças vinculadas à OS deletada
+      if (existing.licenses && existing.licenses.length > 0) {
+        existing.licenses.forEach(l => {
+          if (l.license_id) releaseLicenseFromOS(l.license_id);
+        });
+      }
     }
     const updated = serviceOrders.filter(o => o.id !== id);
     setServiceOrders(updated);
@@ -835,6 +958,7 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIssuer(initialIssuerSettings);
     setClients(initialClients);
     setProducts(initialProducts);
+    setLicenses(initialDigitalLicenses);
     setServices(initialServices);
     setWarrantyTerms(initialWarrantyTerms);
     setServiceOrders(initialServiceOrders);
@@ -859,6 +983,12 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         deleteProduct,
         adjustStock,
         stockMovements,
+        licenses,
+        addLicense,
+        updateLicense,
+        deleteLicense,
+        assignLicenseToOS,
+        releaseLicenseFromOS,
         services,
         addService,
         updateService,

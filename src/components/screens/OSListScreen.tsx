@@ -251,6 +251,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                     </div>
                     <span className="text-[10px] text-slate-400 block">
                       {os.services.length} serviço(s) • {os.products.length} peça(s)
+                      {os.licenses && os.licenses.length > 0 ? ` • ${os.licenses.length} licença(s)` : ''}
                     </span>
                   </div>
                 </div>

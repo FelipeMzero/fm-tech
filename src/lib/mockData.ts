@@ -8,7 +8,8 @@ import {
   FinancialTransaction,
   Sale,
   UserProfile,
-  AuditLog
+  AuditLog,
+  DigitalLicense
 } from './types';
 
 export const initialIssuerSettings: IssuerSettings = {
@@ -245,6 +246,79 @@ export const initialServices: ServiceItem[] = [
   }
 ];
 
+export const initialDigitalLicenses: DigitalLicense[] = [
+  {
+    id: 'lic-001',
+    name: 'Windows 11 Pro OEM 64-bit',
+    category: 'sistema_operacional',
+    license_key: 'W269N-WFGWX-YVC9B-4J6C9-T83GX',
+    status: 'disponivel',
+    cost_price: 45.00,
+    sale_price: 149.90,
+    supplier: 'Distribuidora Tech Keys',
+    duration: 'Vitalícia',
+    notes: 'Licença digital OEM original. Ativação direta nas Configurações do Windows.',
+    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+  },
+  {
+    id: 'lic-002',
+    name: 'Microsoft Office 2021 Professional Plus',
+    category: 'office',
+    license_key: 'FBFPP-2XN5D-CXVGB-VB22G-XX7TH',
+    status: 'disponivel',
+    cost_price: 65.00,
+    sale_price: 199.90,
+    supplier: 'Distribuidora Tech Keys',
+    duration: 'Vitalícia',
+    notes: 'Pacote completo: Word, Excel, PowerPoint, Outlook, Access e Publisher.',
+    created_at: new Date(Date.now() - 8 * 86400000).toISOString(),
+  },
+  {
+    id: 'lic-003',
+    name: 'Kaspersky Plus Antivírus (1 PC / 1 Ano)',
+    category: 'antivirus',
+    license_key: 'KASP-8849-2910-4821-9921',
+    status: 'disponivel',
+    cost_price: 35.00,
+    sale_price: 89.90,
+    supplier: 'Distribuidor Oficial Brasil',
+    duration: '1 Ano',
+    notes: 'Proteção contra vírus, ransomware e firewall de alta performance.',
+    created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+  },
+  {
+    id: 'lic-004',
+    name: 'Windows 10 Pro 64-bit Retail',
+    category: 'sistema_operacional',
+    license_key: 'VK7JG-NPHTM-C97JM-9MPGT-3V66T',
+    status: 'em_uso',
+    cost_price: 40.00,
+    sale_price: 139.90,
+    supplier: 'Distribuidora Tech Keys',
+    duration: 'Vitalícia',
+    service_order_id: 'os-001',
+    os_number: 1001,
+    client_id: 'cli-001',
+    client_name: 'Carlos Alberto Silva',
+    assigned_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    notes: 'Instalado e ativado no notebook Dell Inspiron.',
+    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+  },
+  {
+    id: 'lic-005',
+    name: 'Microsoft 365 Personal (1 Ano / 1TB Nuvem)',
+    category: 'office',
+    license_key: 'M365-5591-3829-1940-0012',
+    status: 'disponivel',
+    cost_price: 90.00,
+    sale_price: 229.00,
+    supplier: 'Distribuidora Software BR',
+    duration: '1 Ano',
+    notes: 'Inclui apps do Office sempre atualizados e 1TB de espaço em nuvem no OneDrive.',
+    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+  }
+];
+
 export const initialServiceOrders: ServiceOrder[] = [
   {
     id: 'os-001',
@@ -277,9 +351,10 @@ export const initialServiceOrders: ServiceOrder[] = [
     internal_observations: 'Cliente pediu prioridade para entregar até amanhã às 17h.',
     services_total: 150.00,
     products_total: 220.00,
+    licenses_total: 139.90,
     discount_type: 'R$',
     discount_value: 20.00,
-    total_amount: 350.00,
+    total_amount: 489.90,
     invoiced: false,
     services: [
       {
@@ -302,6 +377,17 @@ export const initialServiceOrders: ServiceOrder[] = [
         unit_price: 220.00,
         subtotal: 220.00,
         stock_deducted: true,
+      }
+    ],
+    licenses: [
+      {
+        id: 'oslic-001',
+        service_order_id: 'os-001',
+        license_id: 'lic-004',
+        name: 'Windows 10 Pro 64-bit Retail',
+        category: 'sistema_operacional',
+        license_key: 'VK7JG-NPHTM-C97JM-9MPGT-3V66T',
+        unit_price: 139.90,
       }
     ],
     attachments: [

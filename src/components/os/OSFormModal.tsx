@@ -5,6 +5,8 @@ import {
   DiscountType, 
   OSServiceItem, 
   OSProductItem, 
+  OSLicenseItem,
+  DigitalLicense,
   OSAttachment 
 } from '../../lib/types';
 import { useAppStore } from '../../lib/store';
@@ -35,7 +37,10 @@ import {
   Search,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface OSFormModalProps {
@@ -49,6 +54,7 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
     clients, 
     addClient, 
     products, 
+    licenses,
     services, 
     warrantyTerms, 
     addServiceOrder, 
@@ -57,7 +63,7 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
     users 
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'geral' | 'laudos' | 'servicos' | 'produtos' | 'anexos' | 'totais'>('geral');
+  const [activeTab, setActiveTab] = useState<'geral' | 'laudos' | 'servicos' | 'produtos' | 'licencas' | 'anexos' | 'totais'>('geral');
 
   // Dados do formulário da OS
   const [clientId, setClientId] = useState<string>(osToEdit?.client_id || (clients[0]?.id || ''));
@@ -95,9 +101,18 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
     osToEdit?.estimated_delivery_date ? osToEdit.estimated_delivery_date.split('T')[0] : ''
   );
 
-  // Serviços e Peças
+  // Serviços, Peças e Licenças Digitais
   const [osServices, setOsServices] = useState<OSServiceItem[]>(osToEdit?.services || []);
   const [osProducts, setOsProducts] = useState<OSProductItem[]>(osToEdit?.products || []);
+  const [osLicenses, setOsLicenses] = useState<OSLicenseItem[]>(osToEdit?.licenses || []);
+
+  // Seleção e adição de Licenças
+  const [selectedLicenseId, setSelectedLicenseId] = useState<string>('');
+  const [isCustomLicenseOpen, setIsCustomLicenseOpen] = useState<boolean>(false);
+  const [customLicenseName, setCustomLicenseName] = useState<string>('');
+  const [customLicenseKey, setCustomLicenseKey] = useState<string>('');
+  const [customLicensePrice, setCustomLicensePrice] = useState<number>(0);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   // Descontos
   const [discountType, setDiscountType] = useState<DiscountType>(osToEdit?.discount_type || 'R$');
@@ -128,7 +143,8 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
   // Cálculo de Subtotais
   const servicesTotal = osServices.reduce((sum, s) => sum + s.subtotal, 0);
   const productsTotal = osProducts.reduce((sum, p) => sum + p.subtotal, 0);
-  const grossTotal = servicesTotal + productsTotal;
+  const licensesTotal = osLicenses.reduce((sum, l) => sum + (Number(l.unit_price) || 0), 0);
+  const grossTotal = servicesTotal + productsTotal + licensesTotal;
 
   const discountAmount = discountType === '%' 
     ? (grossTotal * discountValue) / 100 
@@ -179,6 +195,59 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
 
   const handleRemoveProduct = (id: string) => {
     setOsProducts(osProducts.filter(p => p.id !== id));
+  };
+
+  // Adicionar Licença do Estoque
+  const handleAddLicenseFromStock = () => {
+    const found = licenses.find(l => l.id === selectedLicenseId);
+    if (!found) return;
+
+    if (osLicenses.some(item => item.license_id === found.id)) {
+      alert('Esta licença já foi adicionada a esta Ordem de Serviço.');
+      return;
+    }
+
+    const newItem: OSLicenseItem = {
+      id: 'oslic-' + Date.now(),
+      service_order_id: osToEdit?.id || '',
+      license_id: found.id,
+      name: found.name,
+      category: found.category,
+      license_key: found.license_key,
+      unit_price: found.sale_price,
+    };
+    setOsLicenses([...osLicenses, newItem]);
+    setSelectedLicenseId('');
+  };
+
+  // Adicionar Licença Avulsa / Customizada
+  const handleAddCustomLicense = () => {
+    if (!customLicenseName || !customLicenseKey) {
+      alert('Preencha o nome do produto digital e a chave serial.');
+      return;
+    }
+    const newItem: OSLicenseItem = {
+      id: 'oslic-' + Date.now(),
+      service_order_id: osToEdit?.id || '',
+      name: customLicenseName,
+      license_key: customLicenseKey.trim().toUpperCase(),
+      unit_price: Number(customLicensePrice) || 0,
+    };
+    setOsLicenses([...osLicenses, newItem]);
+    setCustomLicenseName('');
+    setCustomLicenseKey('');
+    setCustomLicensePrice(0);
+    setIsCustomLicenseOpen(false);
+  };
+
+  const handleRemoveLicense = (id: string) => {
+    setOsLicenses(osLicenses.filter(l => l.id !== id));
+  };
+
+  const handleCopyKey = (id: string, key: string) => {
+    navigator.clipboard.writeText(key);
+    setCopiedKeyId(id);
+    setTimeout(() => setCopiedKeyId(null), 2000);
   };
 
   // Adicionar Foto
@@ -302,9 +371,11 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
       estimated_delivery_date: estimatedDeliveryDate || undefined,
       services: osServices,
       products: osProducts,
+      licenses: osLicenses,
       attachments,
       services_total: servicesTotal,
       products_total: productsTotal,
+      licenses_total: licensesTotal,
       discount_type: discountType,
       discount_value: discountValue,
       total_amount: totalAmount,
@@ -355,8 +426,9 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
             { id: 'laudos', label: '2. Defeito & Diagnóstico' },
             { id: 'servicos', label: `3. Serviços (${osServices.length})` },
             { id: 'produtos', label: `4. Peças (${osProducts.length})` },
-            { id: 'anexos', label: `5. Fotos (${attachments.length})` },
-            { id: 'totais', label: `6. Valores (${formatCurrency(totalAmount)})` },
+            { id: 'licencas', label: `5. Licenças Digitais (${osLicenses.length})` },
+            { id: 'anexos', label: `6. Fotos (${attachments.length})` },
+            { id: 'totais', label: `7. Valores (${formatCurrency(totalAmount)})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -735,6 +807,178 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
             </div>
           )}
 
+          {/* ABA 5: LICENÇAS DIGITAIS */}
+          {activeTab === 'licencas' && (
+            <div className="space-y-4">
+              <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Vincular Chave / Produto Digital do Estoque
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomLicenseOpen(!isCustomLicenseOpen)}
+                    className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    {isCustomLicenseOpen ? 'Fechar Chave Avulsa' : '+ Inserir Chave Avulsa'}
+                  </button>
+                </div>
+
+                {!isCustomLicenseOpen ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedLicenseId}
+                      onChange={(e) => setSelectedLicenseId(e.target.value)}
+                      className="flex-1 text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    >
+                      <option value="">Selecione uma licença disponível no acervo...</option>
+                      {licenses
+                        .filter(l => l.status === 'disponivel' || osLicenses.some(item => item.license_id === l.id))
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} — {formatCurrency(l.sale_price)} [Chave: {l.license_key.slice(0, 5)}•••••{l.license_key.slice(-5)}]
+                          </option>
+                        ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleAddLicenseFromStock}
+                      disabled={!selectedLicenseId}
+                      className="px-4 py-2 bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 shrink-0 shadow-sm transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Adicionar Licença</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nome (ex: Windows 11 Pro)"
+                        value={customLicenseName}
+                        onChange={(e) => setCustomLicenseName(e.target.value)}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Chave Serial (XXXXX-XXXXX...)"
+                        value={customLicenseKey}
+                        onChange={(e) => setCustomLicenseKey(e.target.value.toUpperCase())}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono uppercase"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Valor (R$)"
+                        value={customLicensePrice || ''}
+                        onChange={(e) => setCustomLicensePrice(parseFloat(e.target.value) || 0)}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomLicenseOpen(false)}
+                        className="px-3 py-1.5 text-[11px] border rounded"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomLicense}
+                        className="px-3 py-1.5 text-[11px] bg-emerald-600 text-white font-semibold rounded hover:bg-emerald-700"
+                      >
+                        Inserir na OS
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {osLicenses.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-lg space-y-1">
+                  <KeyRound className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                  <p>Nenhuma licença digital vinculada a esta Ordem de Serviço.</p>
+                  <p className="text-[10px] text-slate-400">
+                    Selecione uma licença do acervo acima para adicionar à OS e emitir na nota/termo do cliente.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5">Produto Digital</th>
+                        <th className="p-2.5">Chave de Ativação (Serial Key)</th>
+                        <th className="p-2.5 w-28 text-right">Valor Venda</th>
+                        <th className="p-2.5 w-16 text-center">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {osLicenses.map((item, idx) => {
+                        const isCopied = copiedKeyId === item.id;
+                        return (
+                          <tr key={idx}>
+                            <td className="p-2.5 font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{item.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 font-mono text-slate-800 dark:text-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                                  {item.license_key}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyKey(item.id, item.license_key)}
+                                  className="p-1 text-slate-400 hover:text-emerald-600"
+                                  title="Copiar chave"
+                                >
+                                  {isCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.unit_price}
+                                onChange={(e) => {
+                                  const p = parseFloat(e.target.value) || 0;
+                                  const updated = [...osLicenses];
+                                  updated[idx].unit_price = p;
+                                  setOsLicenses(updated);
+                                }}
+                                className="w-20 p-1 text-right rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                              />
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLicense(item.id)}
+                                className="p-1 text-rose-500 hover:text-rose-700"
+                                title="Remover da OS"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ABA 4: PEÇAS E PRODUTOS */}
           {activeTab === 'produtos' && (
             <div className="space-y-4">
@@ -840,6 +1084,178 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
             </div>
           )}
 
+          {/* ABA 5: LICENÇAS DIGITAIS */}
+          {activeTab === 'licencas' && (
+            <div className="space-y-4">
+              <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Vincular Chave / Produto Digital do Estoque
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomLicenseOpen(!isCustomLicenseOpen)}
+                    className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    {isCustomLicenseOpen ? 'Fechar Chave Avulsa' : '+ Inserir Chave Avulsa'}
+                  </button>
+                </div>
+
+                {!isCustomLicenseOpen ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedLicenseId}
+                      onChange={(e) => setSelectedLicenseId(e.target.value)}
+                      className="flex-1 text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    >
+                      <option value="">Selecione uma licença disponível no acervo...</option>
+                      {licenses
+                        .filter(l => l.status === 'disponivel' || osLicenses.some(item => item.license_id === l.id))
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} — {formatCurrency(l.sale_price)} [Chave: {l.license_key.slice(0, 5)}•••••{l.license_key.slice(-5)}]
+                          </option>
+                        ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleAddLicenseFromStock}
+                      disabled={!selectedLicenseId}
+                      className="px-4 py-2 bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 shrink-0 shadow-sm transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Adicionar Licença</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nome (ex: Windows 11 Pro)"
+                        value={customLicenseName}
+                        onChange={(e) => setCustomLicenseName(e.target.value)}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Chave Serial (XXXXX-XXXXX...)"
+                        value={customLicenseKey}
+                        onChange={(e) => setCustomLicenseKey(e.target.value.toUpperCase())}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono uppercase"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Valor (R$)"
+                        value={customLicensePrice || ''}
+                        onChange={(e) => setCustomLicensePrice(parseFloat(e.target.value) || 0)}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomLicenseOpen(false)}
+                        className="px-3 py-1.5 text-[11px] border rounded"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomLicense}
+                        className="px-3 py-1.5 text-[11px] bg-emerald-600 text-white font-semibold rounded hover:bg-emerald-700"
+                      >
+                        Inserir na OS
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {osLicenses.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-lg space-y-1">
+                  <KeyRound className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                  <p>Nenhuma licença digital vinculada a esta Ordem de Serviço.</p>
+                  <p className="text-[10px] text-slate-400">
+                    Selecione uma licença do acervo acima para adicionar à OS e emitir na nota/termo do cliente.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5">Produto Digital</th>
+                        <th className="p-2.5">Chave de Ativação (Serial Key)</th>
+                        <th className="p-2.5 w-28 text-right">Valor Venda</th>
+                        <th className="p-2.5 w-16 text-center">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {osLicenses.map((item, idx) => {
+                        const isCopied = copiedKeyId === item.id;
+                        return (
+                          <tr key={idx}>
+                            <td className="p-2.5 font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{item.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 font-mono text-slate-800 dark:text-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                                  {item.license_key}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyKey(item.id, item.license_key)}
+                                  className="p-1 text-slate-400 hover:text-emerald-600"
+                                  title="Copiar chave"
+                                >
+                                  {isCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.unit_price}
+                                onChange={(e) => {
+                                  const p = parseFloat(e.target.value) || 0;
+                                  const updated = [...osLicenses];
+                                  updated[idx].unit_price = p;
+                                  setOsLicenses(updated);
+                                }}
+                                className="w-20 p-1 text-right rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                              />
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLicense(item.id)}
+                                className="p-1 text-rose-500 hover:text-rose-700"
+                                title="Remover da OS"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ABA 5: ANEXOS E FOTOS */}
           {activeTab === 'anexos' && (
             <div className="space-y-4">
@@ -912,6 +1328,178 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
             </div>
           )}
 
+          {/* ABA 5: LICENÇAS DIGITAIS */}
+          {activeTab === 'licencas' && (
+            <div className="space-y-4">
+              <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Vincular Chave / Produto Digital do Estoque
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomLicenseOpen(!isCustomLicenseOpen)}
+                    className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    {isCustomLicenseOpen ? 'Fechar Chave Avulsa' : '+ Inserir Chave Avulsa'}
+                  </button>
+                </div>
+
+                {!isCustomLicenseOpen ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedLicenseId}
+                      onChange={(e) => setSelectedLicenseId(e.target.value)}
+                      className="flex-1 text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    >
+                      <option value="">Selecione uma licença disponível no acervo...</option>
+                      {licenses
+                        .filter(l => l.status === 'disponivel' || osLicenses.some(item => item.license_id === l.id))
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} — {formatCurrency(l.sale_price)} [Chave: {l.license_key.slice(0, 5)}•••••{l.license_key.slice(-5)}]
+                          </option>
+                        ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleAddLicenseFromStock}
+                      disabled={!selectedLicenseId}
+                      className="px-4 py-2 bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 shrink-0 shadow-sm transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Adicionar Licença</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nome (ex: Windows 11 Pro)"
+                        value={customLicenseName}
+                        onChange={(e) => setCustomLicenseName(e.target.value)}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Chave Serial (XXXXX-XXXXX...)"
+                        value={customLicenseKey}
+                        onChange={(e) => setCustomLicenseKey(e.target.value.toUpperCase())}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono uppercase"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Valor (R$)"
+                        value={customLicensePrice || ''}
+                        onChange={(e) => setCustomLicensePrice(parseFloat(e.target.value) || 0)}
+                        className="text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomLicenseOpen(false)}
+                        className="px-3 py-1.5 text-[11px] border rounded"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomLicense}
+                        className="px-3 py-1.5 text-[11px] bg-emerald-600 text-white font-semibold rounded hover:bg-emerald-700"
+                      >
+                        Inserir na OS
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {osLicenses.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-lg space-y-1">
+                  <KeyRound className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                  <p>Nenhuma licença digital vinculada a esta Ordem de Serviço.</p>
+                  <p className="text-[10px] text-slate-400">
+                    Selecione uma licença do acervo acima para adicionar à OS e emitir na nota/termo do cliente.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5">Produto Digital</th>
+                        <th className="p-2.5">Chave de Ativação (Serial Key)</th>
+                        <th className="p-2.5 w-28 text-right">Valor Venda</th>
+                        <th className="p-2.5 w-16 text-center">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {osLicenses.map((item, idx) => {
+                        const isCopied = copiedKeyId === item.id;
+                        return (
+                          <tr key={idx}>
+                            <td className="p-2.5 font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{item.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 font-mono text-slate-800 dark:text-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                                  {item.license_key}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyKey(item.id, item.license_key)}
+                                  className="p-1 text-slate-400 hover:text-emerald-600"
+                                  title="Copiar chave"
+                                >
+                                  {isCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.unit_price}
+                                onChange={(e) => {
+                                  const p = parseFloat(e.target.value) || 0;
+                                  const updated = [...osLicenses];
+                                  updated[idx].unit_price = p;
+                                  setOsLicenses(updated);
+                                }}
+                                className="w-20 p-1 text-right rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                              />
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLicense(item.id)}
+                                className="p-1 text-rose-500 hover:text-rose-700"
+                                title="Remover da OS"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ABA 6: TOTAIS E PRAZOS */}
           {activeTab === 'totais' && (
             <div className="space-y-4">
@@ -967,6 +1555,10 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({ osToEdit, onClose, onS
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Subtotal Peças ({osProducts.length} itens):</span>
                   <span className="font-mono font-semibold">{formatCurrency(productsTotal)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Subtotal Licenças Digitais ({osLicenses.length} itens):</span>
+                  <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(licensesTotal)}</span>
                 </div>
                 {discountValue > 0 && (
                   <div className="flex justify-between text-emerald-600 font-medium">

@@ -17,7 +17,8 @@ import {
   UserCog,
   FileClock,
   Settings,
-  LogOut
+  LogOut,
+  KeyRound
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,10 +27,12 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { products, serviceOrders, logout } = useAppStore();
+  const { products, serviceOrders, licenses, logout } = useAppStore();
 
   // Quantidade de produtos com estoque baixo
   const lowStockCount = products.filter(p => p.current_stock <= p.min_stock).length;
+  // Quantidade de licenças digitais disponíveis
+  const availableLicensesCount = licenses ? licenses.filter(l => l.status === 'disponivel').length : 0;
   // Quantidade de OS abertas/em andamento
   const openOSCount = serviceOrders.filter(o => !['finalizado', 'entregue', 'cancelado'].includes(o.status)).length;
 
@@ -40,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'pos', label: 'Venda Rápida (PDV)', icon: ShoppingCart },
     { id: 'clients', label: 'Clientes & Fornec.', icon: Users },
     { id: 'products', label: 'Peças & Estoque', icon: Package, badge: lowStockCount > 0 ? lowStockCount : null, badgeColor: 'bg-amber-500 text-white', alertIcon: lowStockCount > 0 },
+    { id: 'licenses', label: 'Licenças Digitais', icon: KeyRound, badge: availableLicensesCount > 0 ? availableLicensesCount : null, badgeColor: 'bg-emerald-600 text-white' },
     { id: 'services', label: 'Catálogo de Serviços', icon: ClipboardList },
     { id: 'financial', label: 'Financeiro & Recibos', icon: DollarSign },
     { id: 'reports', label: 'Relatórios & Lucro', icon: BarChart3 },

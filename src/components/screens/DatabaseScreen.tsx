@@ -96,7 +96,27 @@ CREATE TABLE IF NOT EXISTS public.products (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Ordens de Serviço (Tabela Central)
+-- 4. Licenças e Produtos Digitais (Chaves Seriais)
+CREATE TABLE IF NOT EXISTS public.digital_licenses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('sistema_operacional', 'office', 'antivirus', 'servidor', 'utilitario', 'outro')),
+    license_key TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'disponivel' CHECK (status IN ('disponivel', 'em_uso', 'expirado', 'cancelado')),
+    cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    sale_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    supplier TEXT,
+    duration TEXT DEFAULT 'Vitalícia',
+    notes TEXT,
+    service_order_id UUID,
+    os_number INTEGER,
+    client_id UUID,
+    client_name TEXT,
+    assigned_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Ordens de Serviço (Tabela Central)
 CREATE TABLE IF NOT EXISTS public.service_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     os_number BIGSERIAL UNIQUE,

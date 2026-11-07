@@ -131,6 +131,38 @@ export interface OSProductItem {
   stock_deducted: boolean;
 }
 
+export type LicenseStatus = 'disponivel' | 'em_uso' | 'expirado' | 'cancelado';
+export type LicenseCategory = 'sistema_operacional' | 'office' | 'antivirus' | 'utilitario' | 'servidor' | 'outro';
+
+export interface DigitalLicense {
+  id: string;
+  name: string; // Ex: Windows 11 Pro, Office 2021, Kaspersky
+  category: LicenseCategory;
+  license_key: string; // Chave de Ativação / Serial
+  status: LicenseStatus;
+  cost_price: number;
+  sale_price: number;
+  supplier?: string;
+  duration?: string; // Ex: 'Vitalícia', '1 Ano', 'Mensal'
+  notes?: string; // Instruções de ativação / links
+  service_order_id?: string;
+  os_number?: number;
+  client_id?: string;
+  client_name?: string;
+  assigned_at?: string;
+  created_at: string;
+}
+
+export interface OSLicenseItem {
+  id: string;
+  service_order_id?: string;
+  license_id?: string;
+  name: string;
+  category?: LicenseCategory;
+  license_key: string;
+  unit_price: number;
+}
+
 export interface OSAttachment {
   id: string;
   service_order_id: string;
@@ -194,6 +226,7 @@ export interface ServiceOrder {
   // Valores
   services_total: number;
   products_total: number;
+  licenses_total?: number;
   discount_type: DiscountType;
   discount_value: number;
   total_amount: number;
@@ -202,6 +235,7 @@ export interface ServiceOrder {
   // Relações em memória / aninhadas
   services: OSServiceItem[];
   products: OSProductItem[];
+  licenses?: OSLicenseItem[];
   attachments: OSAttachment[];
   timeline: OSTimelineNote[];
   created_at: string;

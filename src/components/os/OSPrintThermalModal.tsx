@@ -141,7 +141,7 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
 
             {/* Itens */}
             <div className="border-b border-dashed border-black pb-2">
-              <div className="font-bold uppercase mb-1">SERVIÇOS & PEÇAS:</div>
+              <div className="font-bold uppercase mb-1">SERVIÇOS, PEÇAS & LICENÇAS:</div>
               {os.services.map((s, idx) => (
                 <div key={idx} className="flex justify-between">
                   <span className="truncate pr-1">{s.quantity}x {s.name}</span>
@@ -152,6 +152,17 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
                 <div key={idx} className="flex justify-between">
                   <span className="truncate pr-1">{p.quantity}x {p.name}</span>
                   <span className="font-semibold whitespace-nowrap">{formatCurrency(p.subtotal)}</span>
+                </div>
+              ))}
+              {os.licenses && os.licenses.map((l, idx) => (
+                <div key={idx} className="space-y-0.5 pt-0.5">
+                  <div className="flex justify-between">
+                    <span className="truncate pr-1">1x {l.name}</span>
+                    <span className="font-semibold whitespace-nowrap">{formatCurrency(l.unit_price)}</span>
+                  </div>
+                  <div className="text-[9px] font-mono text-slate-700 break-all pl-1">
+                    KEY: {l.license_key}
+                  </div>
                 </div>
               ))}
             </div>
