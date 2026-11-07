@@ -334,6 +334,28 @@ export async function fetchCnpjData(cnpj: string): Promise<CnpjLookupResult | nu
   };
 }
 
+/**
+ * Gera um hash criptograficamente seguro e aleatório para links públicos de OS
+ * Impede que terceiros visualizem ordens de serviço de outros clientes.
+ * Exemplo: fmt_a8f3b209c1e4d762e8f103b54789ac2d
+ */
+export function generateSecureOSHash(): string {
+  try {
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      const arr = new Uint8Array(16);
+      window.crypto.getRandomValues(arr);
+      const hex = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+      return `fmt_${hex}`;
+    }
+  } catch (e) {
+    // fallback caso crypto não esteja disponível
+  }
+  const part1 = Math.random().toString(36).substring(2, 12);
+  const part2 = Math.random().toString(36).substring(2, 12);
+  const part3 = Date.now().toString(36);
+  return `fmt_${part1}${part2}${part3}`;
+}
+
 export const OS_STATUS_DETAILS: Record<OSStatus, { label: string; bg: string; text: string; border: string }> = {
   orcamento: { label: 'Orçamento', bg: 'bg-amber-500/10 dark:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800' },
   aberto: { label: 'Aberto', bg: 'bg-blue-500/10 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },

@@ -324,7 +324,7 @@ export const initialServiceOrders: ServiceOrder[] = [
   {
     id: 'os-001',
     os_number: 1001,
-    public_tracking_token: 'a1b2c3d4-e5f6-7a8b-9c0d-112233445566',
+    public_tracking_token: 'fmt_a1b2c3d4e5f67a8b9c0d112233445566',
     client_id: 'cli-001',
     warranty_term_id: 'war-001',
     technician_name: 'Carlos Silva (CPF 123.456.789-00)',
@@ -425,7 +425,7 @@ export const initialServiceOrders: ServiceOrder[] = [
   {
     id: 'os-002',
     os_number: 1002,
-    public_tracking_token: 'b2c3d4e5-f6a7-8b9c-0d1e-223344556677',
+    public_tracking_token: 'fmt_b2c3d4e5f6a78b9c0d1e223344556677',
     client_id: 'cli-003',
     warranty_term_id: 'war-001',
     technician_name: 'Carlos Silva (CPF 123.456.789-00)',
@@ -496,7 +496,7 @@ export const initialServiceOrders: ServiceOrder[] = [
   {
     id: 'os-003',
     os_number: 1003,
-    public_tracking_token: 'c3d4e5f6-a7b8-9c0d-1e2f-334455667788',
+    public_tracking_token: 'fmt_c3d4e5f6a7b89c0d1e2f334455667788',
     client_id: 'cli-002',
     warranty_term_id: 'war-002',
     technician_name: 'Carlos Silva (CPF 123.456.789-00)',

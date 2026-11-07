@@ -37,7 +37,15 @@ export const App: React.FC = () => {
   const [isPublicAccess, setIsPublicAccess] = useState<boolean>(() => {
     const hash = window.location.hash;
     const search = window.location.search;
-    return hash.includes('/acompanhar/') || search.includes('token=') || search.includes('mp_status=');
+    return (
+      hash.includes('/os/') ||
+      hash.includes('/os') ||
+      hash.includes('/acompanhar/') ||
+      hash.includes('/acompanhar') ||
+      search.includes('token=') ||
+      search.includes('os=') ||
+      search.includes('mp_status=')
+    );
   });
 
   // Listener para URLs públicas (acompanhar OS e retornos do Mercado Pago)
@@ -46,16 +54,32 @@ export const App: React.FC = () => {
       const hash = window.location.hash;
       const search = window.location.search;
       const params = new URLSearchParams(search);
+      const hashParams = hash.includes('?') ? new URLSearchParams(hash.split('?')[1]) : new URLSearchParams();
 
-      let token = params.get('token') || '';
+      let token = params.get('os') || params.get('token') || hashParams.get('os') || hashParams.get('token') || '';
+      if (!token && hash.includes('/os/')) {
+        const afterOs = hash.split('/os/')[1];
+        token = afterOs ? afterOs.split('?')[0].split('/')[0] : '';
+      }
       if (!token && hash.includes('/acompanhar/')) {
         const afterAcompanhar = hash.split('/acompanhar/')[1];
         token = afterAcompanhar ? afterAcompanhar.split('?')[0].split('/')[0] : '';
       }
 
-      if (token) {
-        setPortalToken(token);
+      const isPublic = (
+        hash.startsWith('#/os') ||
+        hash.startsWith('#/acompanhar') ||
+        params.has('os') ||
+        params.has('token') ||
+        params.has('mp_status') ||
+        hashParams.has('mp_status')
+      );
+
+      if (isPublic) {
         setIsPublicAccess(true);
+        if (token) {
+          setPortalToken(token);
+        }
       }
     };
 
@@ -67,7 +91,7 @@ export const App: React.FC = () => {
   // Endpoint visual para teste e confirmação de Webhook do Mercado Pago
   if (window.location.search.includes('webhook=mercadopago')) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6 font-['Outfit']">
         <div className="max-w-md w-full bg-slate-800 p-6 rounded-2xl border border-slate-700 text-center space-y-4 shadow-xl">
           <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
             ✓
@@ -94,13 +118,13 @@ export const App: React.FC = () => {
   }
 
   // Se for acesso público direto pelo cliente através do link de acompanhamento
-  if (isPublicAccess && portalToken) {
+  if (isPublicAccess) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-['Outfit']">
         <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center justify-between no-print shadow-sm">
           <div className="flex items-center gap-2">
             <span className="font-extrabold text-[#009ee3] text-lg tracking-tight">FM Tech</span>
-            <span className="text-xs text-slate-500 font-medium">| Portal do Cliente & Acompanhamento</span>
+            <span className="text-xs text-slate-500 font-medium">| Portal do Cliente & Pagamento</span>
           </div>
           <button
             onClick={() => {
@@ -113,7 +137,7 @@ export const App: React.FC = () => {
           </button>
         </header>
         <main className="flex-1 p-4 md:p-6 max-w-4xl w-full mx-auto pb-20">
-          <ClientPortalScreen initialToken={portalToken} />
+          <ClientPortalScreen initialToken={portalToken} isPublicAccess={true} />
         </main>
       </div>
     );

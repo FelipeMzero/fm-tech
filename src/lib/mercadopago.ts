@@ -9,8 +9,25 @@ export interface PreferenceResult {
   isSimulated?: boolean;
 }
 
+export interface PaymentVerificationResult {
+  success: boolean;
+  paymentId?: string;
+  status?: 'approved' | 'in_process' | 'rejected' | 'pending' | 'cancelled' | 'refunded';
+  statusDetail?: string;
+  transactionAmount?: number;
+  paymentMethodId?: string;
+  paymentTypeId?: string;
+  dateApproved?: string;
+  externalReference?: string;
+  payerEmail?: string;
+  payerName?: string;
+  raw?: any;
+  message: string;
+}
+
 /**
  * Testa a conexão das credenciais com a API do Mercado Pago
+ * Endpoint: GET https://api.mercadopago.com/users/me
  */
 export async function testMercadoPagoConnection(accessToken: string): Promise<{
   success: boolean;
@@ -58,7 +75,74 @@ export async function testMercadoPagoConnection(accessToken: string): Promise<{
 }
 
 /**
+ * Consulta e verifica o status real de um pagamento na API do Mercado Pago
+ * Endpoint Oficial: GET https://api.mercadopago.com/v1/payments/{payment_id}
+ */
+export async function verifyMercadoPagoPayment(
+  paymentId: string | number,
+  accessToken: string
+): Promise<PaymentVerificationResult> {
+  const token = accessToken.trim();
+  const cleanId = String(paymentId).trim().replace(/\D/g, '');
+
+  if (!cleanId) {
+    return {
+      success: false,
+      message: 'ID do pagamento não informado ou inválido (deve conter apenas números).',
+    };
+  }
+
+  if (!token) {
+    return {
+      success: false,
+      message: 'Access Token do Mercado Pago não configurado.',
+    };
+  }
+
+  try {
+    const res = await fetch(`https://api.mercadopago.com/v1/payments/${cleanId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        paymentId: String(data.id),
+        status: data.status,
+        statusDetail: data.status_detail,
+        transactionAmount: data.transaction_amount,
+        paymentMethodId: data.payment_method_id,
+        paymentTypeId: data.payment_type_id,
+        dateApproved: data.date_approved,
+        externalReference: data.external_reference,
+        payerEmail: data.payer?.email,
+        payerName: `${data.payer?.first_name || ''} ${data.payer?.last_name || ''}`.trim(),
+        raw: data,
+        message: `Pagamento #${data.id} verificado com sucesso. Status: ${data.status.toUpperCase()} (${data.status_detail || ''}).`,
+      };
+    } else {
+      const err = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        message: err.message || `Erro ao consultar pagamento (${res.status}). Verifique o ID informado e as credenciais.`,
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: 'Falha de comunicação com a API do Mercado Pago: ' + (err.message || 'Erro de rede'),
+    };
+  }
+}
+
+/**
  * Cria uma Preferência de Pagamento no Mercado Pago Checkout Pro
+ * Endpoint Oficial: POST https://api.mercadopago.com/checkout/preferences
  */
 export async function createMercadoPagoPreference(
   os: ServiceOrder,
@@ -68,12 +152,12 @@ export async function createMercadoPagoPreference(
   const token = settings?.access_token?.trim();
   const isSandbox = settings?.sandbox ?? true;
 
-  // Monta URLs de retorno para o Portal do Cliente e Acompanhamento
+  // Monta URLs de retorno para o link público da OS
   const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
   const backUrls = {
-    success: `${baseUrl}/#/acompanhar/${os.public_tracking_token}?mp_status=approved`,
-    pending: `${baseUrl}/#/acompanhar/${os.public_tracking_token}?mp_status=pending`,
-    failure: `${baseUrl}/#/acompanhar/${os.public_tracking_token}?mp_status=failure`,
+    success: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=approved`,
+    pending: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=pending`,
+    failure: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=failure`,
   };
 
   const amount = Number(os.total_amount) || 0;
@@ -84,7 +168,7 @@ export async function createMercadoPagoPreference(
     };
   }
 
-  // Se tiver Access Token válido, tenta criar via API oficial
+  // Se tiver Access Token válido, tenta criar via API oficial do Mercado Pago
   if (token && (token.startsWith('APP_USR-') || token.startsWith('TEST-'))) {
     try {
       const payload: any = {
@@ -112,7 +196,7 @@ export async function createMercadoPagoPreference(
         },
         back_urls: backUrls,
         auto_return: settings?.auto_return || 'approved',
-        external_reference: `os_${os.id}_num_${os.os_number}`,
+        external_reference: `fmt_os_${os.id}_num_${os.os_number}_hash_${os.public_tracking_token}`,
         statement_descriptor: settings?.statement_descriptor || 'FM TECH',
         payment_methods: {
           installments: settings?.max_installments || 12,

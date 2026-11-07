@@ -33,6 +33,7 @@ import {
   createMercadoPagoPreference,
   testMercadoPagoConnection
 } from './mercadopago';
+import { generateSecureOSHash } from './utils';
 import { 
   getSupabaseClient, 
   DEFAULT_SUPABASE_URL, 
@@ -615,7 +616,7 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       os_number: nextNumber,
       os_type: osData.os_type || 'manutencao',
       digital_service_details: osData.digital_service_details,
-      public_tracking_token: 'os-token-' + Math.random().toString(36).substring(2, 12) + '-' + Date.now(),
+      public_tracking_token: osData.public_tracking_token || generateSecureOSHash(),
       client_id: osData.client_id || '',
       technician_name: osData.technician_name || `${issuer.full_name} (CPF ${issuer.cpf})`,
       warranty_term_id: osData.warranty_term_id || warrantyTerms[0]?.id,

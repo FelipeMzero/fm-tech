@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../lib/store';
-import { testMercadoPagoConnection } from '../../lib/mercadopago';
+import { testMercadoPagoConnection, verifyMercadoPagoPayment, PaymentVerificationResult } from '../../lib/mercadopago';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import {
   CreditCard,
@@ -65,6 +65,11 @@ export const MercadoPagoScreen: React.FC = () => {
     paymentId?: string;
     payload?: any;
   } | null>(null);
+
+  // Consulta e Verificação Real na API do Mercado Pago (GET /v1/payments/{id})
+  const [verificationId, setVerificationId] = useState('');
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<PaymentVerificationResult | null>(null);
 
   // Simulador de Checkout Pro
   const [selectedOSId, setSelectedOSId] = useState<string>(() => {
@@ -167,6 +172,33 @@ export const MercadoPagoScreen: React.FC = () => {
       });
       setWebhookTesting(false);
     }, 500);
+  };
+
+  const handleVerifyPaymentAPI = async () => {
+    if (!verificationId.trim()) return;
+    setVerifyingPayment(true);
+    setVerificationResult(null);
+    try {
+      const res = await verifyMercadoPagoPayment(verificationId.trim(), form.access_token);
+      setVerificationResult(res);
+      if (res.success) {
+        addAuditLog('Mercado Pago', 'Consulta API', `Pagamento #${res.paymentId} consultado: ${res.status}`);
+      }
+    } catch (err: any) {
+      setVerificationResult({
+        success: false,
+        message: 'Erro ao verificar pagamento: ' + (err.message || 'Falha de rede')
+      });
+    } finally {
+      setVerifyingPayment(false);
+    }
+  };
+
+  const handleApplyVerificationToOS = () => {
+    if (!verificationResult || !verificationResult.paymentId || !selectedOSId) return;
+    const paymentMethod = verificationResult.paymentMethodId === 'pix' ? 'pix' : 'cartao_credito';
+    confirmMercadoPagoPayment(selectedOSId, verificationResult.paymentId, paymentMethod);
+    alert(`Pagamento #${verificationResult.paymentId} vinculado com sucesso à OS selecionada! Status atualizado para Finalizado.`);
   };
 
   const ordersWithMP = serviceOrders.filter(o => o.mp_payment_url || o.mp_payment_status || o.invoiced);
@@ -675,6 +707,158 @@ export const MercadoPagoScreen: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Consulta Real de Pagamento na API do Mercado Pago (GET /v1/payments/{id}) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600">
+            <Zap className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+              Verificação Oficial de Pagamento na API Mercado Pago
+            </h3>
+            <p className="text-xs text-slate-500">
+              Consulte diretamente os servidores do Mercado Pago informando o ID da transação (<code className="font-mono">payment_id</code>).
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              ID do Pagamento Mercado Pago (ex: 1234567890):
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={verificationId}
+                onChange={(e) => setVerificationId(e.target.value)}
+                placeholder="Ex: 98765432101"
+                className="flex-1 px-3.5 py-2.5 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-sky-500"
+              />
+              <button
+                type="button"
+                onClick={handleVerifyPaymentAPI}
+                disabled={verifyingPayment || !verificationId.trim()}
+                className="px-4 py-2.5 bg-[#009ee3] hover:bg-[#0081bb] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${verifyingPayment ? 'animate-spin' : ''}`} />
+                <span>{verifyingPayment ? 'Consultando...' : 'Consultar API'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-500">
+            Endpoint Oficial: <code className="text-sky-600 font-mono text-[11px]">GET /v1/payments/:id</code>
+          </div>
+        </div>
+
+        {verificationResult && (
+          <div className={`p-4 rounded-xl border text-xs space-y-3 ${
+            verificationResult.success
+              ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100'
+              : 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-100'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold flex items-center gap-1.5">
+                {verificationResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                )}
+                {verificationResult.message}
+              </span>
+              {verificationResult.status && (
+                <span className={`px-2 py-0.5 rounded font-extrabold uppercase text-[10px] ${
+                  verificationResult.status === 'approved'
+                    ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100'
+                    : 'bg-amber-200 text-amber-900'
+                }`}>
+                  Status: {verificationResult.status}
+                </span>
+              )}
+            </div>
+
+            {verificationResult.success && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-emerald-200 dark:border-emerald-800/60 text-[11px]">
+                <div>
+                  <span className="opacity-75 block">Valor Transação:</span>
+                  <strong>{verificationResult.transactionAmount ? formatCurrency(verificationResult.transactionAmount) : 'N/A'}</strong>
+                </div>
+                <div>
+                  <span className="opacity-75 block">Método de Pagamento:</span>
+                  <strong className="uppercase">{verificationResult.paymentMethodId || 'N/A'} ({verificationResult.paymentTypeId || ''})</strong>
+                </div>
+                <div>
+                  <span className="opacity-75 block">Pagador:</span>
+                  <strong className="truncate block">{verificationResult.payerEmail || verificationResult.payerName || 'N/A'}</strong>
+                </div>
+                <div>
+                  <span className="opacity-75 block">Data Aprovação:</span>
+                  <strong>{verificationResult.dateApproved ? formatDate(verificationResult.dateApproved) : 'Pendente'}</strong>
+                </div>
+              </div>
+            )}
+
+            {verificationResult.success && verificationResult.status === 'approved' && selectedOS && (
+              <div className="pt-2 flex items-center justify-between border-t border-emerald-200 dark:border-emerald-800/60">
+                <span className="text-[11px]">
+                  Deseja dar baixa e faturar a <strong>OS #{selectedOS.os_number}</strong> com este pagamento aprovado?
+                </span>
+                <button
+                  type="button"
+                  onClick={handleApplyVerificationToOS}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition"
+                >
+                  Confirmar e Faturar OS #{selectedOS.os_number}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Guia Técnico e Arquitetura de Webhook / Backend */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+              Arquitetura de Notificações Webhook Mercado Pago (Produção)
+            </h3>
+            <p className="text-xs text-slate-500">
+              Exemplo de implementação oficial com SDK Mercado Pago v2 para servidores de retaguarda (Node.js & Python).
+            </p>
+          </div>
+        </div>
+
+        <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2">
+          <p>
+            No GitHub Pages, as notificações instantâneas operam via retorno seguro (<code className="font-mono text-sky-600">back_urls</code>) com confirmação imediata. Caso utilize um backend intermediário (ex: Express, Vercel Serverless, AWS Lambda ou FastAPI), configure o endpoint abaixo:
+          </p>
+          <pre className="p-3.5 bg-slate-950 text-emerald-400 rounded-xl font-mono text-[11px] overflow-x-auto leading-relaxed">
+{`// Exemplo Oficial Node.js / Express com SDK mercadopago
+const { MercadoPagoConfig, Payment } = require('mercadopago');
+const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+
+app.post('/webhook/mercadopago', async (req, res) => {
+  const { type, data } = req.body;
+  if (type === 'payment' && data?.id) {
+    const payment = new Payment(client);
+    const paymentData = await payment.get({ id: data.id });
+    if (paymentData.status === 'approved') {
+      console.log('Pagamento aprovado para:', paymentData.external_reference);
+      // Baixa automática da OS no banco de dados
+    }
+  }
+  res.status(200).send('OK');
+});`}
+          </pre>
         </div>
       </div>
 

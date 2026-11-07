@@ -68,11 +68,20 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
   const [mpLoading, setMpLoading] = useState<boolean>(false);
   const [mpCopied, setMpCopied] = useState<boolean>(false);
   const [copiedOSId, setCopiedOSId] = useState<string | null>(null);
+  const [copiedPublicOSId, setCopiedPublicOSId] = useState<string | null>(null);
 
   const handleCopyPaymentLink = (url: string, osId: string) => {
     navigator.clipboard.writeText(url);
     setCopiedOSId(osId);
     setTimeout(() => setCopiedOSId(null), 2500);
+  };
+
+  const handleCopyPublicLink = (token: string, osId: string) => {
+    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+    const url = `${baseUrl}/#/os/${token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedPublicOSId(osId);
+    setTimeout(() => setCopiedPublicOSId(null), 2500);
   };
 
   const handleOpenMPModal = async (os: ServiceOrder) => {
@@ -110,15 +119,18 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
     const client = clients.find(c => c.id === os.client_id);
     const cleanPhone = (client?.whatsapp || client?.phone || '').replace(/\D/g, '');
     const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
-    const trackingUrl = `${baseUrl}/#/acompanhar/${os.public_tracking_token}`;
+    const trackingUrl = `${baseUrl}/#/os/${os.public_tracking_token}`;
+    const paymentLinkText = (os.status === 'aguardando_pagamento' || !os.invoiced)
+      ? `\n\n💳 *Pagamento Online (Mercado Pago / PIX):*\n${os.mp_payment_url || trackingUrl}`
+      : '';
 
     const text = encodeURIComponent(
       `Olá ${client?.name || 'Cliente'}!\n` +
       `Aqui é da assistência técnica *${issuer.trade_name || issuer.full_name}* (Técnico: ${issuer.full_name} - CPF: ${issuer.cpf}).\n\n` +
       `Sua Ordem de Serviço *#${os.os_number.toString().padStart(4, '0')}* do equipamento *${os.equipment_type} ${os.brand} ${os.model}* está com o status: *${OS_STATUS_DETAILS[os.status]?.label.toUpperCase()}*.\n` +
       `Valor Total: *${formatCurrency(os.total_amount)}*\n\n` +
-      `Você pode acompanhar as fotos, laudo e aprovar o orçamento pelo link público:\n` +
-      `${trackingUrl}\n\n` +
+      `Você pode acompanhar as fotos, laudo e aprovar o orçamento pelo link público seguro:\n` +
+      `${trackingUrl}${paymentLinkText}\n\n` +
       `Chave PIX (${issuer.pix_key_type}): *${issuer.pix_key}*\n` +
       `Qualquer dúvida estamos à disposição!`
     );
@@ -375,7 +387,25 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                       title="Abrir página de rastreamento do cliente"
                     >
                       <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Portal Cliente</span>
+                      <span>Abrir Portal</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleCopyPublicLink(os.public_tracking_token, os.id)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
+                      title="Copiar link público com hash seguro único para o cliente"
+                    >
+                      {copiedPublicOSId === os.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-600 font-bold">Link Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Copiar Link OS</span>
+                        </>
+                      )}
                     </button>
 
                     <button
