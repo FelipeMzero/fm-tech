@@ -18,7 +18,8 @@ import {
   FileClock,
   Settings,
   LogOut,
-  KeyRound
+  KeyRound,
+  CreditCard
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -46,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'licenses', label: 'Licenças Digitais', icon: KeyRound, badge: availableLicensesCount > 0 ? availableLicensesCount : null, badgeColor: 'bg-emerald-600 text-white' },
     { id: 'services', label: 'Catálogo de Serviços', icon: ClipboardList },
     { id: 'financial', label: 'Financeiro & Recibos', icon: DollarSign },
+    { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard, sub: 'Checkout Pro & Pix' },
     { id: 'reports', label: 'Relatórios & Lucro', icon: BarChart3 },
     { id: 'warranty', label: 'Termos de Garantia', icon: ShieldCheck },
     { id: 'users', label: 'Usuários & Técnicos', icon: UserCog, sub: 'Equipe Map-OS' },

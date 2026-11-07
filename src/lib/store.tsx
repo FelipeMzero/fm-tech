@@ -12,7 +12,8 @@ import {
   PaymentMethod,
   UserProfile,
   AuditLog,
-  DigitalLicense
+  DigitalLicense,
+  MercadoPagoSettings
 } from './types';
 import {
   initialIssuerSettings,
@@ -25,8 +26,13 @@ import {
   initialSales,
   initialUsers,
   initialAuditLogs,
-  initialDigitalLicenses
+  initialDigitalLicenses,
+  initialMercadoPagoSettings
 } from './mockData';
+import {
+  createMercadoPagoPreference,
+  testMercadoPagoConnection
+} from './mercadopago';
 import { 
   getSupabaseClient, 
   DEFAULT_SUPABASE_URL, 
@@ -122,6 +128,12 @@ interface AppStoreContextType {
   supabaseConfig: SupabaseConfig;
   updateSupabaseConfig: (config: Partial<SupabaseConfig>) => void;
   resetAllData: () => void;
+
+  // Integração Mercado Pago Checkout Pro
+  mercadoPago: MercadoPagoSettings;
+  updateMercadoPagoSettings: (data: Partial<MercadoPagoSettings>) => void;
+  generateOSMercadoPagoLink: (osId: string) => Promise<{ success: boolean; paymentUrl?: string; preferenceId?: string; isSimulated?: boolean; error?: string }>;
+  confirmMercadoPagoPayment: (osId: string, paymentId?: string, paymentMethod?: PaymentMethod) => void;
 }
 
 const AppStoreContext = createContext<AppStoreContextType | null>(null);
@@ -144,6 +156,7 @@ const STORAGE_KEYS = {
   ADMIN_CREDS: 'fmtech_admin_credentials',
   THEME: 'mapos_pf_dark_mode',
   SUPABASE: 'mapos_pf_supabase_config',
+  MERCADOPAGO: 'fmtech_mercadopago_config',
 };
 
 export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -955,6 +968,93 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
+  // Configurações Mercado Pago Checkout Pro
+  const [mercadoPago, setMercadoPago] = useState<MercadoPagoSettings>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.MERCADOPAGO);
+    return saved ? JSON.parse(saved) : initialMercadoPagoSettings;
+  });
+
+  const updateMercadoPagoSettings = (data: Partial<MercadoPagoSettings>) => {
+    setMercadoPago(prev => {
+      const updated = { ...prev, ...data };
+      localStorage.setItem(STORAGE_KEYS.MERCADOPAGO, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const generateOSMercadoPagoLink = async (osId: string) => {
+    const os = serviceOrders.find(o => o.id === osId);
+    if (!os) return { success: false, error: 'Ordem de serviço não encontrada.' };
+    const client = clients.find(c => c.id === os.client_id);
+
+    const result = await createMercadoPagoPreference(os, client, mercadoPago);
+    if (result.success && result.paymentUrl) {
+      updateServiceOrder(os.id, {
+        mp_preference_id: result.preferenceId,
+        mp_payment_url: result.paymentUrl,
+        mp_payment_status: 'pending',
+      });
+      addAuditLog('Mercado Pago', 'Gerar Link', `Link Checkout Pro gerado para OS #${os.os_number} (R$ ${os.total_amount.toFixed(2)})`);
+      return {
+        success: true,
+        paymentUrl: result.paymentUrl,
+        preferenceId: result.preferenceId,
+        isSimulated: result.isSimulated,
+      };
+    }
+    return { success: false, error: result.error || 'Erro ao gerar preferência no Mercado Pago.' };
+  };
+
+  const confirmMercadoPagoPayment = (osId: string, paymentId?: string, paymentMethod: PaymentMethod = 'pix') => {
+    const os = serviceOrders.find(o => o.id === osId);
+    if (!os) return;
+
+    const pid = paymentId || `mp_pay_${Date.now()}`;
+    const client = clients.find(c => c.id === os.client_id);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Atualiza status da OS
+    updateServiceOrder(os.id, {
+      status: 'finalizado',
+      invoiced: true,
+      mp_payment_id: pid,
+      mp_payment_status: 'approved',
+    });
+
+    // Se ainda não houver lançamento no financeiro para esta OS, cria lançamento como pago
+    const existingTx = transactions.find(t => t.service_order_id === os.id);
+    if (!existingTx) {
+      const newTx: FinancialTransaction = {
+        id: 'fin-mp-' + Date.now(),
+        description: `Recebimento Checkout Pro OS #${os.os_number} - ${client?.name || 'Cliente'} (ID MP: ${pid})`,
+        type: 'receita',
+        category: 'Mercado Pago Checkout Pro',
+        client_id: os.client_id,
+        client_name: client?.name,
+        service_order_id: os.id,
+        os_number: os.os_number,
+        amount: os.total_amount,
+        discount: os.discount_value,
+        paid_amount: os.total_amount,
+        due_date: today,
+        payment_date: today,
+        status: 'pago',
+        payment_method: paymentMethod,
+        notes: `Pagamento aprovado via Mercado Pago Checkout Pro. ID Transação: ${pid}`,
+        created_at: new Date().toISOString(),
+      };
+      setTransactions(prev => {
+        const next = [newTx, ...prev];
+        localStorage.setItem(STORAGE_KEYS.FINANCE, JSON.stringify(next));
+        return next;
+      });
+    } else {
+      markTransactionAsPaid(existingTx.id, today, paymentMethod);
+    }
+
+    addAuditLog('Mercado Pago', 'Pagamento Aprovado', `Pagamento da OS #${os.os_number} aprovado via Mercado Pago (${paymentMethod.toUpperCase()}). Transação: ${pid}`);
+  };
+
   const resetAllData = () => {
     localStorage.clear();
     setIssuer(initialIssuerSettings);
@@ -967,6 +1067,7 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setTransactions(initialFinancialTransactions);
     setSales(initialSales);
     setStockMovements([]);
+    setMercadoPago(initialMercadoPagoSettings);
     window.location.reload();
   };
 
@@ -1028,6 +1129,10 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         logout,
         saveSetupToSupabase,
         resetAllData,
+        mercadoPago,
+        updateMercadoPagoSettings,
+        generateOSMercadoPagoLink,
+        confirmMercadoPagoPayment,
       }}
     >
       {children}

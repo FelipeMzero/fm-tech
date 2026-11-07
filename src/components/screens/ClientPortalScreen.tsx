@@ -22,7 +22,8 @@ import {
   Check, 
   Copy,
   ExternalLink,
-  KeyRound
+  KeyRound,
+  CreditCard
 } from 'lucide-react';
 
 interface ClientPortalScreenProps {
@@ -30,13 +31,23 @@ interface ClientPortalScreenProps {
 }
 
 export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialToken }) => {
-  const { serviceOrders, clients, issuer, updateServiceOrder } = useAppStore();
+  const {
+    serviceOrders,
+    clients,
+    issuer,
+    updateServiceOrder,
+    mercadoPago,
+    generateOSMercadoPagoLink,
+    confirmMercadoPagoPayment
+  } = useAppStore();
   const [tokenInput, setTokenInput] = useState<string>(initialToken || (serviceOrders[0]?.public_tracking_token || ''));
   const [pixQrUrl, setPixQrUrl] = useState<string>('');
   const [pixPayloadStr, setPixPayloadStr] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [approvedSuccess, setApprovedSuccess] = useState<boolean>(false);
+  const [loadingMP, setLoadingMP] = useState<boolean>(false);
+  const [mpSuccessNotice, setMpSuccessNotice] = useState<boolean>(false);
 
   // Busca a OS pelo token
   const currentOS = serviceOrders.find(
@@ -62,6 +73,28 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialT
     }
     makePix();
   }, [currentOS, issuer]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mp_status') === 'approved' && currentOS) {
+      setMpSuccessNotice(true);
+      if (currentOS.status !== 'finalizado') {
+        confirmMercadoPagoPayment(currentOS.id, params.get('payment_id') || undefined, 'pix');
+      }
+    }
+  }, [currentOS]);
+
+  const handlePayMercadoPago = async () => {
+    if (!currentOS) return;
+    setLoadingMP(true);
+    const res = await generateOSMercadoPagoLink(currentOS.id);
+    setLoadingMP(false);
+    if (res.success && res.paymentUrl) {
+      window.open(res.paymentUrl, '_blank');
+    } else {
+      alert(res.error || 'Não foi possível iniciar o Checkout Pro do Mercado Pago.');
+    }
+  };
 
   // Aprovar Orçamento Online
   const handleApproveBudget = () => {
@@ -394,6 +427,52 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({ initialT
                 </div>
               </div>
             </div>
+
+            {/* Notificação de Pagamento Aprovado Mercado Pago */}
+            {mpSuccessNotice && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 p-4 rounded-xl text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-sm">Pagamento Aprovado com Sucesso!</h4>
+                  <p className="text-xs">Seu pagamento via Mercado Pago foi confirmado instantaneamente. Obrigado pela confiança na FM Tech!</p>
+                </div>
+              </div>
+            )}
+
+            {/* Pagamento Online Checkout Pro do Mercado Pago */}
+            {mercadoPago.enabled && (
+              <div className="bg-gradient-to-r from-sky-50 via-sky-100/50 to-blue-50 dark:from-sky-950/30 dark:via-sky-900/20 dark:to-blue-950/30 border border-sky-200 dark:border-sky-800 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-[#009ee3] text-white p-3 rounded-xl shadow-md flex-shrink-0">
+                    <CreditCard className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight text-sm">
+                        Mercado Pago Checkout Pro
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        Aprovação Imediata
+                      </span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-300">
+                      Pague com <strong>PIX</strong>, <strong>Cartão de Crédito em até {mercadoPago.max_installments || 12}x</strong>, Boleto ou Saldo com total proteção ao comprador.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePayMercadoPago}
+                  disabled={loadingMP}
+                  className="w-full sm:w-auto px-5 py-3 bg-[#009ee3] hover:bg-[#0081bb] active:scale-95 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-500/20 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>{loadingMP ? 'Iniciando Checkout...' : 'Pagar com Mercado Pago'}</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                </button>
+              </div>
+            )}
 
             {/* Pagamento PIX Estático com QR Code */}
             {pixQrUrl && (

@@ -9,7 +9,8 @@ import {
   Sale,
   UserProfile,
   AuditLog,
-  DigitalLicense
+  DigitalLicense,
+  MercadoPagoSettings
 } from './types';
 
 export const initialIssuerSettings: IssuerSettings = {
@@ -725,3 +726,16 @@ export const initialAuditLogs: AuditLog[] = [
     created_at: new Date(Date.now() - 14 * 3600000).toISOString(),
   }
 ];
+
+export const initialMercadoPagoSettings: MercadoPagoSettings = {
+  enabled: true,
+  sandbox: true,
+  access_token: '',
+  public_key: '',
+  client_id: '',
+  client_secret: '',
+  statement_descriptor: 'FM TECH',
+  max_installments: 12,
+  auto_return: 'approved',
+  notification_url: '',
+};

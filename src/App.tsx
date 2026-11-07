@@ -14,6 +14,7 @@ import { FinancialScreen } from './components/screens/FinancialScreen';
 import { ReportsScreen } from './components/screens/ReportsScreen';
 import { WarrantyScreen } from './components/screens/WarrantyScreen';
 import { IssuerScreen } from './components/screens/IssuerScreen';
+import { MercadoPagoScreen } from './components/screens/MercadoPagoScreen';
 import { DatabaseScreen } from './components/screens/DatabaseScreen';
 import { UsersScreen } from './components/screens/UsersScreen';
 import { AuditScreen } from './components/screens/AuditScreen';
@@ -134,6 +135,8 @@ export const App: React.FC = () => {
           {activeTab === 'audit' && <AuditScreen />}
 
           {activeTab === 'issuer' && <IssuerScreen />}
+
+          {activeTab === 'mercadopago' && <MercadoPagoScreen />}
 
           {activeTab === 'database' && <DatabaseScreen />}
         </main>

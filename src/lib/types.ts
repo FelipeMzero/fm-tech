@@ -246,6 +246,12 @@ export interface ServiceOrder {
   total_amount: number;
   invoiced: boolean;
   
+  // Mercado Pago Checkout Pro
+  mp_preference_id?: string;
+  mp_payment_url?: string;
+  mp_payment_id?: string;
+  mp_payment_status?: 'pending' | 'approved' | 'rejected' | 'in_process';
+
   // Relações em memória / aninhadas
   services: OSServiceItem[];
   products: OSProductItem[];
@@ -316,6 +322,31 @@ export interface FinancialTransaction {
   payment_date?: string;
   status: TransactionStatus;
   payment_method?: PaymentMethod;
+  mp_preference_id?: string;
+  mp_payment_id?: string;
+  mp_payment_url?: string;
   notes?: string;
+  created_at: string;
+}
+
+export interface MercadoPagoSettings {
+  enabled: boolean;
+  sandbox: boolean;
+  access_token: string;
+  public_key: string;
+  client_id?: string;
+  client_secret?: string;
+  statement_descriptor?: string; // Nome na fatura do cartão (ex: FMTECH)
+  max_installments: number; // Máximo de parcelas (ex: 12)
+  auto_return: 'approved' | 'all';
+  notification_url?: string;
+  last_tested_at?: string;
+}
+
+export interface MercadoPagoPreference {
+  id: string;
+  init_point: string;
+  sandbox_init_point: string;
+  external_reference: string;
   created_at: string;
 }
