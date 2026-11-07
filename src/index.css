@@ -54,10 +54,24 @@
 }
 
 /* Regras de Impressão de Alta Qualidade para Documentos A4 e Térmica */
+@page {
+  margin: 0 !important;
+  size: auto;
+}
+
 @media print {
-  body {
+  @page {
+    margin: 0 !important;
+    size: auto;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
     background-color: #ffffff !important;
     color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
   .no-print {
@@ -68,15 +82,43 @@
     display: block !important;
   }
 
-  @page {
-    margin: 10mm;
-    size: auto;
+  /* Oculta links de rodapé do navegador e suprime referências de URL */
+  a[href]:after {
+    content: none !important;
+  }
+
+  header, footer {
+    display: none !important;
+  }
+
+  /* Estilização para folha A4 com margens internas limpas */
+  .print-a4-page {
+    padding: 10mm 12mm !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+
+  .print-a4-page * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   /* Estilização para cupom de bobina térmica */
   .thermal-receipt {
     width: 78mm !important;
     margin: 0 auto !important;
+    padding: 4mm 2mm !important;
     font-family: 'Courier New', Courier, monospace !important;
     font-size: 11px !important;
     line-height: 1.2 !important;

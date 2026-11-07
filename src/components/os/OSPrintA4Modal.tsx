@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ServiceOrder } from '../../lib/types';
 import { useAppStore } from '../../lib/store';
 import { 
@@ -7,13 +7,11 @@ import {
   formatDateTime, 
   formatCPF, 
   formatPhone, 
-  formatCEP,
+  formatCEP, 
   formatDocument,
-  generatePixPayload, 
-  generateQRCodeDataUrl,
   OS_STATUS_DETAILS 
 } from '../../lib/utils';
-import { Printer, X, Copy, Check, FileText } from 'lucide-react';
+import { Printer, X, FileText, Download, Layers, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 interface OSPrintA4ModalProps {
   os: ServiceOrder;
@@ -21,50 +19,28 @@ interface OSPrintA4ModalProps {
 }
 
 export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) => {
-  const { issuer, clients, warrantyTerms } = useAppStore();
+  const { issuer, clients, warrantyTerms, transactions } = useAppStore();
   const [twoCopies, setTwoCopies] = useState<boolean>(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
-  const [pixPayloadStr, setPixPayloadStr] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
 
   const client = clients.find(c => c.id === os.client_id) || os.client;
   const warranty = warrantyTerms.find(w => w.id === os.warranty_term_id) || os.warranty_term;
-
-  useEffect(() => {
-    async function makePix() {
-      if (!issuer.pix_key) return;
-      const payload = generatePixPayload({
-        pixKey: issuer.pix_key,
-        merchantName: issuer.trade_name || issuer.full_name,
-        merchantCity: issuer.city || 'SAO PAULO',
-        amount: os.total_amount,
-        txId: `OS${os.os_number}`,
-        description: `OS #${os.os_number} ${os.equipment_type}`,
-      });
-      setPixPayloadStr(payload);
-      const url = await generateQRCodeDataUrl(payload);
-      setQrCodeUrl(url);
-    }
-    makePix();
-  }, [os, issuer]);
+  const osTransaction = transactions.find(t => t.service_order_id === os.id);
 
   const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = `OS_${os.os_number}_FM_Tech`;
     window.print();
-  };
-
-  const copyPix = () => {
-    if (!pixPayloadStr) return;
-    navigator.clipboard.writeText(pixPayloadStr);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 500);
   };
 
   const renderSingleVia = (viaLabel: string) => {
     return (
-      <div className="bg-white text-black p-6 border border-slate-300 rounded shadow-sm text-xs leading-relaxed space-y-4 print:border-none print:shadow-none print:p-0 print:m-0">
+      <div className="bg-white text-slate-900 p-7 border border-slate-300 rounded-lg shadow-sm text-xs leading-relaxed space-y-4 print-a4-page print:border-none print:shadow-none print:rounded-none">
         {/* Cabeçalho do Emitente (Pessoa Física - CPF) */}
         <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3">
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 max-w-[70%]">
             <h2 className="text-base font-extrabold tracking-tight uppercase text-slate-900">
               {issuer.trade_name || issuer.full_name}
             </h2>
@@ -83,21 +59,21 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
           </div>
 
           <div className="text-right flex flex-col items-end">
-            <div className="bg-slate-900 text-white px-3 py-1 text-center rounded">
-              <span className="block text-[10px] uppercase font-bold tracking-wider">Ordem de Serviço</span>
-              <span className="text-lg font-black font-mono">#{os.os_number.toString().padStart(4, '0')}</span>
+            <div className="bg-slate-900 text-white px-3.5 py-1.5 text-center rounded">
+              <span className="block text-[9px] uppercase font-bold tracking-wider">Ordem de Serviço</span>
+              <span className="text-xl font-black font-mono">#{os.os_number.toString().padStart(4, '0')}</span>
             </div>
-            <span className="text-[10px] text-slate-500 font-semibold uppercase mt-1">
+            <span className="text-[10px] text-slate-600 font-bold uppercase mt-1">
               {viaLabel}
             </span>
-            <span className="text-[10px] mt-0.5 font-bold px-2 py-0.5 rounded border border-slate-300 bg-slate-50">
+            <span className="text-[10px] mt-0.5 font-bold px-2 py-0.5 rounded border border-slate-300 bg-slate-50 text-slate-800">
               Status: {OS_STATUS_DETAILS[os.status]?.label || os.status}
             </span>
           </div>
         </div>
 
         {/* Datas e Identificação do Cliente */}
-        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-2.5 rounded border border-slate-200">
+        <div className="grid grid-cols-2 gap-4 bg-slate-50/80 p-2.5 rounded border border-slate-200">
           <div>
             <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-1 mb-1">
               Dados do Cliente
@@ -120,7 +96,7 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
               <p><strong>Data de Conclusão:</strong> {formatDate(os.completion_date)}</p>
             )}
             <p className="font-mono text-[10px] text-slate-600 truncate">
-              <strong>Token Rastreio:</strong> {os.public_tracking_token}
+              <strong>Token de Controle:</strong> {os.public_tracking_token}
             </p>
           </div>
         </div>
@@ -273,43 +249,36 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
           )}
         </div>
 
-        {/* Totais e Pagamento PIX com QR Code */}
-        <div className="flex items-start justify-between border border-slate-300 rounded p-3 bg-slate-50/70">
-          <div className="flex items-center gap-3">
-            {qrCodeUrl ? (
-              <div className="bg-white p-1 rounded border border-slate-300 shadow-sm flex flex-col items-center">
-                <img src={qrCodeUrl} alt="QR Code PIX" className="w-24 h-24" />
-                <span className="text-[9px] font-bold text-slate-600 mt-0.5">Pague via PIX</span>
-              </div>
-            ) : null}
-
-            <div className="space-y-1 text-[11px]">
-              <div className="font-bold text-slate-800 uppercase">Chave PIX do Prestador (PF)</div>
-              <div className="font-mono text-xs bg-white px-2 py-1 rounded border border-slate-300 inline-block font-semibold">
-                {issuer.pix_key_type}: {issuer.pix_key}
-              </div>
-              <p className="text-[10px] text-slate-500">
-                Favorecido: {issuer.full_name} (CPF {issuer.cpf})
-              </p>
-              <p className="text-[10px] text-slate-500 max-w-xs">
-                Aponte a câmera do aplicativo do seu banco para pagar com o valor exato já preenchido.
-              </p>
+        {/* Totais e Resumo Financeiro (Sem QR Code PIX conforme solicitado) */}
+        <div className="flex items-start justify-between border border-slate-300 rounded p-3 bg-slate-50/80 break-inside-avoid">
+          <div className="space-y-1 text-[11px] max-w-sm">
+            <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1">
+              Resumo e Condições de Atendimento
             </div>
+            <p className="text-slate-600">
+              <strong>Situação Financeira:</strong> {os.invoiced ? 'Faturada / Liquidada' : 'Aguardando Pagamento / Retirada'}
+            </p>
+            <p className="text-slate-600">
+              <strong>Forma de Cobrança:</strong> {osTransaction?.payment_method ? osTransaction.payment_method.toUpperCase() : 'À vista (PIX / Dinheiro / Cartão)'}
+            </p>
+            <p className="text-[10px] text-slate-500 italic mt-1">
+              Documento oficial de ordem de serviço para fins de garantia e controle técnico.
+            </p>
           </div>
 
-          <div className="text-right space-y-1 min-w-[180px]">
+          <div className="text-right space-y-1 min-w-[200px] border-l border-slate-200 pl-4">
             <div className="flex justify-between text-slate-600">
               <span>Total Serviços:</span>
-              <span>{formatCurrency(os.services_total)}</span>
+              <span className="font-semibold">{formatCurrency(os.services_total)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
               <span>Total Peças:</span>
-              <span>{formatCurrency(os.products_total)}</span>
+              <span className="font-semibold">{formatCurrency(os.products_total)}</span>
             </div>
             {((os.licenses_total && os.licenses_total > 0) || (os.licenses && os.licenses.length > 0)) && (
               <div className="flex justify-between text-slate-600">
                 <span>Total Licenças:</span>
-                <span>{formatCurrency(os.licenses_total || os.licenses?.reduce((s, l) => s + l.unit_price, 0) || 0)}</span>
+                <span className="font-semibold">{formatCurrency(os.licenses_total || os.licenses?.reduce((s, l) => s + l.unit_price, 0) || 0)}</span>
               </div>
             )}
             {os.discount_value > 0 && (
@@ -318,15 +287,15 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
                 <span>- {os.discount_type === '%' ? `${os.discount_value}%` : formatCurrency(os.discount_value)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-black border-t-2 border-slate-800 pt-1 text-slate-950">
+            <div className="flex justify-between text-sm font-black border-t-2 border-slate-900 pt-1.5 mt-1 text-slate-950">
               <span>VALOR TOTAL:</span>
-              <span className="text-base text-blue-900">{formatCurrency(os.total_amount)}</span>
+              <span className="text-base text-blue-900 font-mono">{formatCurrency(os.total_amount)}</span>
             </div>
           </div>
         </div>
 
         {/* Termo de Garantia e Rodapé */}
-        <div className="text-[10px] text-slate-600 border border-slate-200 rounded p-2 bg-white space-y-1">
+        <div className="text-[10px] text-slate-600 border border-slate-200 rounded p-2 bg-white space-y-1 break-inside-avoid">
           <div className="font-bold uppercase text-slate-800">
             Termo de Garantia ({warranty?.days_duration || issuer.default_warranty_days} Dias):
           </div>
@@ -336,7 +305,7 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
         </div>
 
         {/* Assinaturas */}
-        <div className="pt-6 grid grid-cols-2 gap-8 text-center text-xs">
+        <div className="pt-5 grid grid-cols-2 gap-8 text-center text-xs break-inside-avoid">
           <div>
             <div className="border-t border-slate-700 pt-1">
               <strong className="block text-slate-900 font-semibold">{issuer.full_name}</strong>
@@ -358,43 +327,47 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-4xl max-h-[92vh] flex flex-col rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800">
         {/* Barra Superior com Controles */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-xl no-print">
+        <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-xl gap-3 no-print">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-              Visualização de Impressão A4 - OS #{os.os_number} (Emitente CPF)
-            </h2>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                Impressão e Exportação PDF - OS #{os.os_number}
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Formato A4 limpo • Sem URLs de rodapé • Pronto para impressão ou PDF
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setTwoCopies(!twoCopies)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 twoCopies 
                   ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300' 
                   : 'bg-white text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
               }`}
             >
-              {twoCopies ? 'Modo: 2 Vias (Cliente e Oficina)' : 'Modo: 1 Via Completa'}
+              <Layers className="w-3.5 h-3.5" />
+              <span>{twoCopies ? 'Modo: 2 Vias' : 'Modo: 1 Via'}</span>
             </button>
 
-            {pixPayloadStr && (
-              <button
-                onClick={copyPix}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300"
-                title="Copiar código PIX Copia e Cola"
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Copiado!' : 'Copiar PIX'}</span>
-              </button>
-            )}
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all"
+              title="Abre a caixa de diálogo para salvar em PDF ou imprimir na impressora"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Salvar em PDF</span>
+            </button>
 
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimir / Salvar PDF</span>
+              <Printer className="w-3.5 h-3.5" />
+              <span>Imprimir</span>
             </button>
 
             <button
@@ -403,6 +376,16 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* Banner com Dica para Salvar PDF */}
+        <div className="px-6 py-2 bg-blue-50 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 flex items-center justify-between no-print">
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span>
+              <strong>Dica para PDF:</strong> Clique em <strong>Salvar em PDF</strong> e selecione o destino <em>"Salvar como PDF"</em>. As margens foram configuradas para remover links de rodapé.
+            </span>
           </div>
         </div>
 

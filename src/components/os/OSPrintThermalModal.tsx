@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ServiceOrder } from '../../lib/types';
 import { useAppStore } from '../../lib/store';
 import { 
@@ -6,8 +6,6 @@ import {
   formatDateTime, 
   formatCPF, 
   formatPhone, 
-  generatePixPayload, 
-  generateQRCodeDataUrl,
   OS_STATUS_DETAILS 
 } from '../../lib/utils';
 import { Printer, X, Receipt } from 'lucide-react';
@@ -20,35 +18,16 @@ interface OSPrintThermalModalProps {
 export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, onClose }) => {
   const { issuer, clients } = useAppStore();
   const [paperWidth, setPaperWidth] = useState<'80mm' | '58mm'>('80mm');
-  const [pixQrUrl, setPixQrUrl] = useState<string>('');
-  const [trackingQrUrl, setTrackingQrUrl] = useState<string>('');
 
   const client = clients.find(c => c.id === os.client_id) || os.client;
 
-  useEffect(() => {
-    async function loadQRs() {
-      if (issuer.pix_key) {
-        const payload = generatePixPayload({
-          pixKey: issuer.pix_key,
-          merchantName: issuer.trade_name || issuer.full_name,
-          merchantCity: issuer.city || 'SAO PAULO',
-          amount: os.total_amount,
-          txId: `OS${os.os_number}`,
-        });
-        const pixUrl = await generateQRCodeDataUrl(payload);
-        setPixQrUrl(pixUrl);
-      }
-
-      // QR Code do Portal do Cliente
-      const trackingUrl = `${window.location.origin}/#/acompanhar/${os.public_tracking_token}`;
-      const trackUrl = await generateQRCodeDataUrl(trackingUrl);
-      setTrackingQrUrl(trackUrl);
-    }
-    loadQRs();
-  }, [os, issuer]);
-
   const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = `OS_${os.os_number}`;
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 500);
   };
 
   const is58mm = paperWidth === '58mm';
@@ -198,25 +177,13 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
               </div>
             </div>
 
-            {/* QR Code PIX */}
-            {pixQrUrl && (
-              <div className="text-center border-t border-dashed border-black pt-2 flex flex-col items-center">
-                <div className="font-bold text-[10px] uppercase mb-1">PIX PARA PAGAMENTO:</div>
-                <img src={pixQrUrl} alt="PIX" className="w-28 h-28 mx-auto" />
-                <div className="text-[9px] mt-0.5">Chave {issuer.pix_key_type}: {issuer.pix_key}</div>
+            {/* Consulta Online com Token */}
+            <div className="text-center border-t border-dashed border-black pt-2 pb-1">
+              <div className="font-bold text-[9px] uppercase">CONSULTA ONLINE:</div>
+              <div className="text-[9px] font-mono font-bold text-slate-800 mt-0.5">
+                Token: {os.public_tracking_token}
               </div>
-            )}
-
-            {/* QR Code Rastreamento */}
-            {trackingQrUrl && (
-              <div className="text-center border-t border-dashed border-black pt-2 flex flex-col items-center">
-                <div className="font-bold text-[10px] uppercase mb-1">ACOMPANHE ONLINE:</div>
-                <img src={trackingQrUrl} alt="Rastreio" className="w-20 h-20 mx-auto" />
-                <div className="text-[8px] text-slate-600 break-all px-2 mt-0.5">
-                  Token: {os.public_tracking_token.substring(0, 18)}...
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Termo e Assinatura */}
             <div className="text-center text-[9px] text-slate-700 border-t border-dashed border-black pt-2 space-y-3">
