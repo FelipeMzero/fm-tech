@@ -78,6 +78,13 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
     }
   }, [initialToken]);
 
+  // Força Tema Claro (Light Mode) no portal público do cliente
+  useEffect(() => {
+    if (isPublicAccess) {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isPublicAccess]);
+
   // Gera payload do PIX Estático como alternativa
   useEffect(() => {
     async function makePix() {

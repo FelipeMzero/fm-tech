@@ -240,9 +240,19 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-base font-extrabold px-2.5 py-1 bg-slate-900 text-white rounded-lg">
-                      #{os.os_number.toString().padStart(4, '0')}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPublicLink(os.public_tracking_token, os.id)}
+                      className="font-mono text-base font-extrabold px-2.5 py-1 bg-slate-900 hover:bg-[#009ee3] text-white rounded-lg transition-colors flex items-center gap-1.5 group cursor-pointer shadow-sm active:scale-95"
+                      title="Clique para copiar o link com o código desta OS para o cliente"
+                    >
+                      <span>#{os.os_number.toString().padStart(4, '0')}</span>
+                      {copiedPublicOSId === os.id ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100" />
+                      )}
+                    </button>
                     <div>
                       <h3 className="font-bold text-slate-900 dark:text-white text-sm">
                         {os.equipment_type} - {os.brand} {os.model}
@@ -382,9 +392,12 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
                   <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 w-full sm:w-auto">
                     <button
-                      onClick={() => onOpenPortal(os.public_tracking_token)}
+                      onClick={() => {
+                        handleCopyPublicLink(os.public_tracking_token, os.id);
+                        onOpenPortal(os.public_tracking_token);
+                      }}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
-                      title="Abrir página de rastreamento do cliente"
+                      title="Abrir página de rastreamento do cliente e já copiar link para a área de transferência"
                     >
                       <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
                       <span>Abrir Portal</span>

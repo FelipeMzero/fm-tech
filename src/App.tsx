@@ -22,7 +22,7 @@ import { SetupScreen } from './components/screens/SetupScreen';
 import { LoginScreen } from './components/screens/LoginScreen';
 import { OSFormModal } from './components/os/OSFormModal';
 import { ServiceOrder } from './lib/types';
-import { LayoutDashboard, Wrench, ShoppingCart, CreditCard, Menu } from 'lucide-react';
+import { LayoutDashboard, Wrench, ShoppingCart, CreditCard, Menu, Check, Copy } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { serviceOrders, setupCompleted, setSetupCompleted, isAuthenticated } = useAppStore();
@@ -33,6 +33,7 @@ export const App: React.FC = () => {
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
   const [portalToken, setPortalToken] = useState<string>('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [copiedPublicHeader, setCopiedPublicHeader] = useState<boolean>(false);
 
   const [isPublicAccess, setIsPublicAccess] = useState<boolean>(() => {
     const hash = window.location.hash;
@@ -88,6 +89,13 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', parseUrl);
   }, []);
 
+  // Força Tema Claro (Light Mode) na visualização pública da OS do cliente
+  React.useEffect(() => {
+    if (isPublicAccess) {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isPublicAccess]);
+
   // Endpoint visual para teste e confirmação de Webhook do Mercado Pago
   if (window.location.search.includes('webhook=mercadopago')) {
     return (
@@ -117,26 +125,50 @@ export const App: React.FC = () => {
     );
   }
 
-  // Se for acesso público direto pelo cliente através do link de acompanhamento
+  // Visualização Pública Oficial da Ordem de Serviço (Tema Claro exclusivo para o cliente, sem botões administrativos)
   if (isPublicAccess) {
+    const handleCopyPublicUrl = () => {
+      const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+      const url = portalToken ? `${baseUrl}/#/os/${portalToken}` : window.location.href;
+      navigator.clipboard.writeText(url);
+      setCopiedPublicHeader(true);
+      setTimeout(() => setCopiedPublicHeader(false), 2500);
+    };
+
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-['Outfit']">
-        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center justify-between no-print shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-[#009ee3] text-lg tracking-tight">FM Tech</span>
-            <span className="text-xs text-slate-500 font-medium">| Portal do Cliente & Pagamento</span>
+      <div className="min-h-screen bg-slate-100 flex flex-col font-['Outfit'] text-slate-800">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between no-print shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#009ee3] text-white font-extrabold flex items-center justify-center text-sm shadow-md shadow-sky-500/20">
+              FM
+            </div>
+            <div>
+              <span className="font-black text-slate-900 text-base tracking-tight block">FM Tech</span>
+              <span className="text-[11px] text-slate-500 font-medium">Portal do Cliente • Acompanhamento & Pagamento</span>
+            </div>
           </div>
-          <button
-            onClick={() => {
-              setIsPublicAccess(false);
-              window.location.hash = '';
-            }}
-            className="text-xs text-slate-600 dark:text-slate-300 hover:text-blue-600 font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 transition"
-          >
-            Acesso Administrativo →
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyPublicUrl}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition active:scale-95"
+              title="Copiar link com o código hash desta OS para acesso do cliente"
+            >
+              {copiedPublicHeader ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-600 font-bold">Link Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Copiar Link da OS</span>
+                </>
+              )}
+            </button>
+          </div>
         </header>
-        <main className="flex-1 p-4 md:p-6 max-w-4xl w-full mx-auto pb-20">
+        <main className="flex-1 p-3 sm:p-6 max-w-4xl w-full mx-auto pb-20">
           <ClientPortalScreen initialToken={portalToken} isPublicAccess={true} />
         </main>
       </div>
@@ -157,6 +189,12 @@ export const App: React.FC = () => {
   };
 
   const handleOpenPortalWithToken = (token: string) => {
+    // Ao clicar para abrir o portal, já copia automaticamente o link com o código para a área de transferência
+    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+    const url = `${baseUrl}/#/os/${token}`;
+    try {
+      navigator.clipboard.writeText(url);
+    } catch (e) {}
     setPortalToken(token);
     setActiveTab('portal');
   };
