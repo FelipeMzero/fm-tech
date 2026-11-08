@@ -680,6 +680,31 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const updated = [newOS, ...serviceOrders];
     setServiceOrders(updated);
     localStorage.setItem(STORAGE_KEYS.OS, JSON.stringify(updated));
+
+    // Sincroniza criação no Supabase se conectado
+    try {
+      const clientSb = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+      if (clientSb) {
+        clientSb.from('service_orders').upsert({
+          os_number: newOS.os_number,
+          public_tracking_token: newOS.public_tracking_token,
+          client_id: newOS.client_id,
+          equipment_type: newOS.equipment_type,
+          brand: newOS.brand,
+          model: newOS.model,
+          serial_imei: newOS.serial_imei,
+          reported_defect: newOS.reported_defect,
+          technical_report: newOS.technical_report,
+          services_total: newOS.services_total,
+          products_total: newOS.products_total,
+          total_amount: newOS.total_amount,
+          status: newOS.status,
+          invoiced: newOS.invoiced,
+          created_at: newOS.created_at,
+        }).then(() => {}, () => {});
+      }
+    } catch (e) {}
+
     return newOS;
   };
 
@@ -749,6 +774,27 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const updated = serviceOrders.map(o => o.id === id ? { ...o, ...patch, timeline: newTimeline } : o);
     setServiceOrders(updated);
     localStorage.setItem(STORAGE_KEYS.OS, JSON.stringify(updated));
+
+    // Sincroniza atualização no Supabase se conectado
+    try {
+      const clientSb = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+      if (clientSb) {
+        clientSb.from('service_orders')
+          .update({
+            status: patch.status,
+            invoiced: patch.invoiced,
+            mp_payment_id: patch.mp_payment_id,
+            mp_payment_status: patch.mp_payment_status,
+            mp_payment_url: patch.mp_payment_url,
+            technical_report: patch.technical_report,
+            solution_applied: patch.solution_applied,
+            total_amount: patch.total_amount,
+            updated_at: new Date().toISOString()
+          })
+          .or(`id.eq.${id},public_tracking_token.eq.${id},os_number.eq.${isNaN(Number(id)) ? 0 : Number(id)}`)
+          .then(() => {}, () => {});
+      }
+    } catch (e) {}
   };
 
   const deleteServiceOrder = (id: string) => {

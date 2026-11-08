@@ -137,8 +137,8 @@ export const App: React.FC = () => {
     };
 
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col font-['Outfit'] text-slate-800">
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between no-print shadow-sm">
+      <div className="min-h-screen bg-slate-50 flex flex-col font-['Outfit'] text-slate-800">
+        <header className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between no-print shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#009ee3] text-white font-extrabold flex items-center justify-center text-sm shadow-md shadow-sky-500/20">
               FM
@@ -152,7 +152,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyPublicUrl}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-bold shadow-sm transition active:scale-95"
               title="Copiar link com o código hash desta OS para acesso do cliente"
             >
               {copiedPublicHeader ? (
@@ -169,7 +169,7 @@ export const App: React.FC = () => {
             </button>
           </div>
         </header>
-        <main className="flex-1 p-3 sm:p-6 max-w-4xl w-full mx-auto pb-20">
+        <main className="flex-1 p-2 sm:p-4 md:p-6 max-w-4xl w-full mx-auto pb-20">
           <ClientPortalScreen initialToken={portalToken} isPublicAccess={true} />
         </main>
       </div>

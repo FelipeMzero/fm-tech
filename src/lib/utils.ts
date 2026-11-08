@@ -430,8 +430,8 @@ export function decodeOSSharePayload(b64url: string): { os: any; client?: any } 
  */
 export function buildPublicOSUrl(os: any, client?: any): string {
   const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
-  const encoded = encodeOSSharePayload(os, client);
-  return `${baseUrl}/#/os/${os.public_tracking_token}?d=${encoded}`;
+  const token = os.public_tracking_token || os.os_number || os.id;
+  return `${baseUrl}/#/os/${token}`;
 }
 
 /**

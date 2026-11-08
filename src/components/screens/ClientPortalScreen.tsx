@@ -34,7 +34,9 @@ import {
   Printer,
   Loader2,
   Receipt,
-  FileText
+  FileText,
+  Link2,
+  Share2
 } from 'lucide-react';
 
 interface ClientPortalScreenProps {
@@ -70,6 +72,33 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
   const [mpSuccessNotice, setMpSuccessNotice] = useState<boolean>(false);
   const [showDirectPix, setShowDirectPix] = useState<boolean>(false);
   const [confirmingManual, setConfirmingManual] = useState<boolean>(false);
+  const [copiedCleanOSLink, setCopiedCleanOSLink] = useState<boolean>(false);
+
+  // Copia o link direto e claro da OS
+  const handleCopyOSLink = () => {
+    if (!currentOS) return;
+    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+    const cleanUrl = `${baseUrl}/#/os/${currentOS.os_number}`;
+    navigator.clipboard.writeText(cleanUrl);
+    setCopiedCleanOSLink(true);
+    setTimeout(() => setCopiedCleanOSLink(false), 2500);
+  };
+
+  // Enviar link da OS no WhatsApp
+  const handleShareOSWhatsApp = () => {
+    if (!currentOS) return;
+    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+    const cleanUrl = `${baseUrl}/#/os/${currentOS.os_number}`;
+    const text = encodeURIComponent(
+      `Olá ${client?.name || ''}, acompanhe e pague sua Ordem de Serviço #${currentOS.os_number} da FM Tech pelo link seguro: ${cleanUrl}`
+    );
+    const phone = (client?.whatsapp || client?.phone || '').replace(/\D/g, '');
+    if (phone) {
+      window.open(`https://wa.me/55${phone}?text=${text}`, '_blank');
+    } else {
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    }
+  };
 
   // Confirmação manual de pagamento / Baixa imediata de status da OS
   const handleConfirmPaidManually = () => {
@@ -89,7 +118,9 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
   // Busca a OS estritamente pelo hash aleatório informado
   const currentOS = tokenInput.trim()
     ? serviceOrders.find(
-        o => o.public_tracking_token.toLowerCase() === tokenInput.trim().toLowerCase()
+        o => o.public_tracking_token.toLowerCase() === tokenInput.trim().toLowerCase() ||
+             String(o.os_number) === tokenInput.trim() ||
+             o.id === tokenInput.trim()
       )
     : (!isPublicAccess ? serviceOrders[0] : null);
 
@@ -134,7 +165,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
             services:os_services(*),
             products:os_products(*)
           `)
-          .eq('public_tracking_token', activeToken)
+          .or(`public_tracking_token.eq.${activeToken},os_number.eq.${isNaN(Number(activeToken)) ? 0 : Number(activeToken)}`)
           .maybeSingle()
           .then(
             ({ data, error }: any) => {
@@ -399,43 +430,48 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
 
       {/* Cartão Principal da OS */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-        {/* Topo com Identificação da Assistência Técnica e Prestador */}
-        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white p-6 sm:p-8 space-y-4">
+        {/* Topo com Identificação da Assistência Técnica e Prestador em Tema Claro */}
+        <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50/80 border-b border-slate-200 p-4 sm:p-6 md:p-8 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[11px] uppercase tracking-widest font-extrabold text-blue-200 bg-white/10 px-2.5 py-0.5 rounded-full inline-block">
-                Portal Oficial de Acompanhamento
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-black mt-2">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-sky-800 bg-sky-100 border border-sky-200 px-2.5 py-0.5 rounded-full inline-block">
+                  Portal Oficial de Acompanhamento
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 font-mono">
+                  REF: #{currentOS.os_number.toString().padStart(4, '0')}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
                 Ordem de Serviço #{currentOS.os_number.toString().padStart(4, '0')}
               </h1>
-              <p className="text-xs text-blue-100 mt-1">
-                Oficina: <strong>{issuer.trade_name || issuer.full_name}</strong> • Prestador: <strong>{issuer.full_name} (CPF {formatCPF(issuer.cpf)})</strong>
+              <p className="text-xs text-slate-600">
+                Oficina: <strong className="text-slate-800">{issuer.trade_name || issuer.full_name}</strong> • Prestador: <strong className="text-slate-800">{issuer.full_name} (CPF {formatCPF(issuer.cpf)})</strong>
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 p-3.5 rounded-2xl text-left sm:text-right shrink-0">
-              <span className="text-[10px] text-blue-200 block uppercase font-bold tracking-wider">Status Atual</span>
-              <span className="text-base font-extrabold text-white flex items-center sm:justify-end gap-1.5 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="bg-white border border-slate-200 shadow-sm p-3.5 rounded-2xl text-left sm:text-right shrink-0">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Status Atual</span>
+              <span className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center sm:justify-end gap-2 mt-0.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 {OS_STATUS_DETAILS[currentOS.status]?.label}
               </span>
             </div>
           </div>
 
-          {/* Stepper de Progresso */}
-          <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {/* Stepper de Progresso em Tema Claro e 100% Responsivo */}
+          <div className="pt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
             {steps.map((st, i) => (
               <div
                 key={st.key}
-                className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 transition ${
+                className={`p-2 sm:p-2.5 rounded-xl border text-[11px] sm:text-xs flex items-center gap-2 transition shadow-sm ${
                   st.done
-                    ? 'bg-white/20 border-white/40 text-white font-semibold'
-                    : 'bg-black/15 border-white/10 text-blue-200/60'
+                    ? 'bg-emerald-50/90 border-emerald-300 text-emerald-900 font-bold'
+                    : 'bg-white border-slate-200 text-slate-400 font-medium'
                 }`}
               >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                  st.done ? 'bg-emerald-400 text-slate-900' : 'bg-white/20 text-white'
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                  st.done ? 'bg-emerald-500 text-white shadow-sm' : 'bg-slate-100 text-slate-500'
                 }`}>
                   {st.done ? '✓' : i + 1}
                 </div>
@@ -878,8 +914,8 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
               Discriminação dos Serviços, Peças e Licenças:
             </span>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden text-xs">
-              <table className="w-full text-left">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto text-xs shadow-sm">
+              <table className="w-full text-left min-w-[500px]">
                 <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="p-3">Descrição</th>
