@@ -7,8 +7,11 @@ import {
   formatCPF, 
   generatePixPayload, 
   generateQRCodeDataUrl,
-  OS_STATUS_DETAILS 
+  OS_STATUS_DETAILS,
+  decodeOSSharePayload,
+  getTokenFromUrl
 } from '../../lib/utils';
+import { getSupabaseClient } from '../../lib/supabaseClient';
 import { 
   CheckCircle2, 
   Clock, 
@@ -28,7 +31,8 @@ import {
   ShieldAlert, 
   ArrowRight,
   Download,
-  Printer
+  Printer,
+  Loader2
 } from 'lucide-react';
 
 interface ClientPortalScreenProps {
@@ -47,10 +51,12 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
     updateServiceOrder,
     mercadoPago,
     generateOSMercadoPagoLink,
-    confirmMercadoPagoPayment
+    confirmMercadoPagoPayment,
+    importOSFromPublicLink
   } = useAppStore();
 
-  const [tokenInput, setTokenInput] = useState<string>(initialToken);
+  const [tokenInput, setTokenInput] = useState<string>(() => (initialToken || getTokenFromUrl()).trim());
+  const [fetchingRemote, setFetchingRemote] = useState<boolean>(false);
   const [manualToken, setManualToken] = useState<string>('');
   const [pixQrUrl, setPixQrUrl] = useState<string>('');
   const [pixPayloadStr, setPixPayloadStr] = useState<string>('');
@@ -74,9 +80,59 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
   // Atualiza input se prop mudar
   useEffect(() => {
     if (initialToken) {
-      setTokenInput(initialToken);
+      setTokenInput(initialToken.trim());
     }
   }, [initialToken]);
+
+  // Efeito de auto-recuperação da OS caso aberta em outro aparelho (celular/navegador sem o localStorage prévio)
+  useEffect(() => {
+    const activeToken = (tokenInput || initialToken || getTokenFromUrl()).trim();
+    if (!currentOS && activeToken) {
+      // 1. Tenta recuperar do payload seguro embutido no link (?d=...)
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = window.location.hash.includes('?')
+        ? new URLSearchParams(window.location.hash.split('?')[1])
+        : new URLSearchParams();
+      
+      const payloadData = searchParams.get('d') || hashParams.get('d');
+      if (payloadData) {
+        const decoded = decodeOSSharePayload(payloadData);
+        if (decoded && decoded.os) {
+          importOSFromPublicLink(decoded.os, decoded.client);
+          setTokenInput(decoded.os.public_tracking_token);
+          return;
+        }
+      }
+
+      // 2. Tenta recuperar do Supabase se o banco de dados estiver acessível
+      try {
+        setFetchingRemote(true);
+        const supabase = getSupabaseClient();
+        supabase
+          .from('service_orders')
+          .select(`
+            *,
+            client:clients(*),
+            services:os_services(*),
+            products:os_products(*)
+          `)
+          .eq('public_tracking_token', activeToken)
+          .maybeSingle()
+          .then(
+            ({ data, error }: any) => {
+              setFetchingRemote(false);
+              if (data && !error) {
+                importOSFromPublicLink(data, data.client);
+                setTokenInput(data.public_tracking_token);
+              }
+            },
+            () => setFetchingRemote(false)
+          );
+      } catch (e) {
+        setFetchingRemote(false);
+      }
+    }
+  }, [currentOS, tokenInput, initialToken]);
 
   // Força Tema Claro (Light Mode) no portal público do cliente
   useEffect(() => {
@@ -217,42 +273,62 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
     },
   ];
 
+  // Loading enquanto busca no payload da URL ou Supabase
+  if (fetchingRemote) {
+    return (
+      <div className="max-w-md mx-auto py-20 px-4 text-center space-y-4 font-['Outfit']">
+        <Loader2 className="w-10 h-10 text-sky-600 animate-spin mx-auto" />
+        <h3 className="text-base font-bold text-slate-800">Localizando sua Ordem de Serviço...</h3>
+        <p className="text-xs text-slate-500">Recuperando com segurança os dados de laudo e pagamento da OS.</p>
+      </div>
+    );
+  }
+
   // Caso não encontre a OS pelo hash fornecido
   if (!currentOS) {
+    const handleSearchManual = () => {
+      let raw = manualToken.trim();
+      if (!raw) return;
+      if (raw.includes('/os/')) {
+        raw = raw.split('/os/')[1];
+      }
+      const tokenPart = raw.split('?')[0].split('/')[0];
+      if (tokenPart) {
+        setTokenInput(tokenPart);
+        window.location.hash = `#/os/${raw}`;
+      }
+    };
+
     return (
-      <div className="max-w-xl mx-auto py-12 px-4 text-center space-y-6">
+      <div className="max-w-xl mx-auto py-12 px-4 text-center space-y-6 font-['Outfit']">
         <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto border border-amber-500/20 shadow-sm">
           <ShieldAlert className="w-8 h-8" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900">
             Ordem de Serviço Não Encontrada
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-            Por razões de privacidade e segurança, cada cliente possui um <strong>link exclusivo com hash criptográfico</strong>. O código informado não corresponde a nenhuma Ordem de Serviço ativa.
+          <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+            Por razões de privacidade e segurança, cada cliente possui um <strong>link exclusivo com código criptográfico</strong>. O código informado não corresponde a nenhuma Ordem de Serviço ativa.
           </p>
         </div>
 
         {/* Campo para digitar o código caso o cliente tenha recebido */}
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block text-left">
-            Possui o código hash da sua OS?
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <label className="text-xs font-semibold text-slate-700 block text-left">
+            Possui o código ou link da sua OS?
           </label>
           <div className="flex gap-2">
             <input
               type="text"
               value={manualToken}
               onChange={(e) => setManualToken(e.target.value)}
-              placeholder="Ex: fmt_8f7b2c01e4a5d893..."
-              className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              onKeyDown={(e) => e.key === 'Enter' && handleSearchManual()}
+              placeholder="Cole o link ou código (ex: fmt_8f7b2c01...)"
+              className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
             <button
-              onClick={() => {
-                if (manualToken.trim()) {
-                  setTokenInput(manualToken.trim());
-                  window.location.hash = `#/os/${manualToken.trim()}`;
-                }
-              }}
+              onClick={handleSearchManual}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             >
               <Search className="w-3.5 h-3.5" />

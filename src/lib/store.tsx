@@ -90,6 +90,7 @@ interface AppStoreContextType {
   updateServiceOrder: (id: string, osData: Partial<ServiceOrder>) => void;
   deleteServiceOrder: (id: string) => void;
   invoiceServiceOrder: (osId: string, paymentMethod: PaymentMethod, dueDate?: string) => void;
+  importOSFromPublicLink: (os: ServiceOrder, clientData?: any) => void;
 
   // Vendas PDV
   sales: Sale[];
@@ -807,6 +808,31 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     updateServiceOrder(osId, { invoiced: true });
   };
 
+  // Importa e hidrata OS vinda de um link público compartilhado em outro aparelho
+  const importOSFromPublicLink = (os: ServiceOrder, clientData?: any) => {
+    if (!os || !os.public_tracking_token) return;
+
+    setServiceOrders(prev => {
+      const exists = prev.some(
+        o => o.public_tracking_token.toLowerCase() === os.public_tracking_token.toLowerCase() || o.id === os.id
+      );
+      if (exists) return prev;
+      const updated = [os, ...prev];
+      localStorage.setItem(STORAGE_KEYS.OS, JSON.stringify(updated));
+      return updated;
+    });
+
+    if (clientData && clientData.id) {
+      setClients(prev => {
+        const clientExists = prev.some(c => c.id === clientData.id);
+        if (clientExists) return prev;
+        const updatedClients = [clientData, ...prev];
+        localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(updatedClients));
+        return updatedClients;
+      });
+    }
+  };
+
   // Vendas PDV (Balcão)
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SALES);
@@ -1105,6 +1131,7 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateServiceOrder,
         deleteServiceOrder,
         invoiceServiceOrder,
+        importOSFromPublicLink,
         sales,
         createSale,
         transactions,

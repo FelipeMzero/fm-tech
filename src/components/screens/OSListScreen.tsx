@@ -6,7 +6,8 @@ import {
   formatDate, 
   formatDateTime, 
   formatPhone, 
-  OS_STATUS_DETAILS 
+  OS_STATUS_DETAILS,
+  buildPublicOSUrl 
 } from '../../lib/utils';
 import { OSFormModal } from '../os/OSFormModal';
 import { OSPrintA4Modal } from '../os/OSPrintA4Modal';
@@ -77,8 +78,11 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
   };
 
   const handleCopyPublicLink = (token: string, osId: string) => {
-    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
-    const url = `${baseUrl}/#/os/${token}`;
+    const os = serviceOrders.find(o => o.id === osId || o.public_tracking_token === token);
+    const client = os ? clients.find(c => c.id === os.client_id) : null;
+    const url = os
+      ? buildPublicOSUrl(os, client)
+      : `${(window.location.origin + window.location.pathname).replace(/\/$/, '')}/#/os/${token}`;
     navigator.clipboard.writeText(url);
     setCopiedPublicOSId(osId);
     setTimeout(() => setCopiedPublicOSId(null), 2500);
@@ -118,8 +122,7 @@ export const OSListScreen: React.FC<OSListScreenProps> = ({
   const handleShareWhatsApp = (os: ServiceOrder) => {
     const client = clients.find(c => c.id === os.client_id);
     const cleanPhone = (client?.whatsapp || client?.phone || '').replace(/\D/g, '');
-    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
-    const trackingUrl = `${baseUrl}/#/os/${os.public_tracking_token}`;
+    const trackingUrl = buildPublicOSUrl(os, client);
     const paymentLinkText = (os.status === 'aguardando_pagamento' || !os.invoiced)
       ? `\n\n💳 *Pagamento Online (Mercado Pago / PIX):*\n${os.mp_payment_url || trackingUrl}`
       : '';

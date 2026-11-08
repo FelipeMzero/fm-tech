@@ -23,15 +23,16 @@ import { LoginScreen } from './components/screens/LoginScreen';
 import { OSFormModal } from './components/os/OSFormModal';
 import { ServiceOrder } from './lib/types';
 import { LayoutDashboard, Wrench, ShoppingCart, CreditCard, Menu, Check, Copy } from 'lucide-react';
+import { getTokenFromUrl, buildPublicOSUrl } from './lib/utils';
 
 export const App: React.FC = () => {
-  const { serviceOrders, setupCompleted, setSetupCompleted, isAuthenticated } = useAppStore();
+  const { serviceOrders, clients, setupCompleted, setSetupCompleted, isAuthenticated } = useAppStore();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isOpeningSetup, setIsOpeningSetup] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState<boolean>(false);
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
-  const [portalToken, setPortalToken] = useState<string>('');
+  const [portalToken, setPortalToken] = useState<string>(getTokenFromUrl);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [copiedPublicHeader, setCopiedPublicHeader] = useState<boolean>(false);
 
@@ -39,13 +40,13 @@ export const App: React.FC = () => {
     const hash = window.location.hash;
     const search = window.location.search;
     return (
-      hash.includes('/os/') ||
       hash.includes('/os') ||
-      hash.includes('/acompanhar/') ||
       hash.includes('/acompanhar') ||
       search.includes('token=') ||
       search.includes('os=') ||
-      search.includes('mp_status=')
+      search.includes('mp_status=') ||
+      search.includes('d=') ||
+      hash.includes('d=')
     );
   });
 
@@ -189,9 +190,12 @@ export const App: React.FC = () => {
   };
 
   const handleOpenPortalWithToken = (token: string) => {
-    // Ao clicar para abrir o portal, já copia automaticamente o link com o código para a área de transferência
-    const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
-    const url = `${baseUrl}/#/os/${token}`;
+    // Ao clicar para abrir o portal, já copia automaticamente o link público da OS com código para a área de transferência
+    const foundOS = serviceOrders.find(o => o.public_tracking_token === token);
+    const client = foundOS ? clients.find(c => c.id === foundOS.client_id) : null;
+    const url = foundOS
+      ? buildPublicOSUrl(foundOS, client)
+      : `${(window.location.origin + window.location.pathname).replace(/\/$/, '')}/#/os/${token}`;
     try {
       navigator.clipboard.writeText(url);
     } catch (e) {}

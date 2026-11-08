@@ -375,3 +375,83 @@ export const TRANSACTION_STATUS_DETAILS: Record<TransactionStatus, { label: stri
   vencido: { label: 'Vencido', bg: 'bg-rose-100 dark:bg-rose-950/60', text: 'text-rose-800 dark:text-rose-400' },
   cancelado: { label: 'Cancelado', bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-800 dark:text-slate-400' },
 };
+
+/**
+ * Codifica o payload da OS para inclusão segura na URL compartilhada
+ * Garante que qualquer aparelho (celular do cliente, outro navegador)
+ * consiga abrir a OS imediatamente mesmo sem acesso prévio ao localStorage.
+ */
+export function encodeOSSharePayload(os: any, client?: any): string {
+  try {
+    const bundle = {
+      os,
+      client: client ? {
+        id: client.id,
+        name: client.name,
+        phone: client.phone,
+        whatsapp: client.whatsapp,
+        email: client.email,
+        document: client.document,
+        person_type: client.person_type
+      } : undefined,
+    };
+    const json = JSON.stringify(bundle);
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    bytes.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch (err) {
+    console.warn('Erro ao codificar payload da OS:', err);
+    return '';
+  }
+}
+
+/**
+ * Decodifica o payload da OS vindo de um link compartilhado
+ */
+export function decodeOSSharePayload(b64url: string): { os: any; client?: any } | null {
+  try {
+    if (!b64url) return null;
+    let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json);
+  } catch (err) {
+    console.warn('Erro ao decodificar payload da OS:', err);
+    return null;
+  }
+}
+
+/**
+ * Monta o link público seguro para compartilhamento da OS com cliente
+ */
+export function buildPublicOSUrl(os: any, client?: any): string {
+  const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+  const encoded = encodeOSSharePayload(os, client);
+  return `${baseUrl}/#/os/${os.public_tracking_token}?d=${encoded}`;
+}
+
+/**
+ * Extrai o token de rastreamento da URL atual de forma síncrona
+ */
+export function getTokenFromUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash || '';
+  const search = window.location.search || '';
+  const params = new URLSearchParams(search);
+  const hashParams = hash.includes('?') ? new URLSearchParams(hash.split('?')[1]) : new URLSearchParams();
+
+  let token = params.get('os') || params.get('token') || hashParams.get('os') || hashParams.get('token') || '';
+  if (!token && hash.includes('/os/')) {
+    const afterOs = hash.split('/os/')[1];
+    token = afterOs ? afterOs.split('?')[0].split('/')[0] : '';
+  }
+  if (!token && hash.includes('/acompanhar/')) {
+    const afterAcompanhar = hash.split('/acompanhar/')[1];
+    token = afterAcompanhar ? afterAcompanhar.split('?')[0].split('/')[0] : '';
+  }
+  return token.trim();
+}
