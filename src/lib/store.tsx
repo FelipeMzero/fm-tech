@@ -1010,9 +1010,9 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const generateOSMercadoPagoLink = async (osId: string) => {
-    const os = serviceOrders.find(o => o.id === osId);
+    const os = serviceOrders.find(o => o.id === osId || o.public_tracking_token === osId);
     if (!os) return { success: false, error: 'Ordem de serviço não encontrada.' };
-    const client = clients.find(c => c.id === os.client_id);
+    const client = clients.find(c => c.id === os.client_id) || (os as any).client;
 
     const result = await createMercadoPagoPreference(os, client, mercadoPago);
     if (result.success && result.paymentUrl) {
@@ -1022,6 +1022,23 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         mp_payment_status: 'pending',
       });
       addAuditLog('Mercado Pago', 'Gerar Link', `Link Checkout Pro gerado para OS #${os.os_number} (R$ ${os.total_amount.toFixed(2)})`);
+
+      // Sincroniza silenciosamente com Supabase se conectado
+      try {
+        const clientSb = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+        if (clientSb) {
+          clientSb.from('service_orders')
+            .update({
+              mp_preference_id: result.preferenceId,
+              mp_payment_url: result.paymentUrl,
+              mp_payment_status: 'pending',
+              updated_at: new Date().toISOString(),
+            })
+            .or(`id.eq.${os.id},public_tracking_token.eq.${os.public_tracking_token}`)
+            .then(() => {}, () => {});
+        }
+      } catch (e) {}
+
       return {
         success: true,
         paymentUrl: result.paymentUrl,
@@ -1033,14 +1050,14 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const confirmMercadoPagoPayment = (osId: string, paymentId?: string, paymentMethod: PaymentMethod = 'pix') => {
-    const os = serviceOrders.find(o => o.id === osId);
+    const os = serviceOrders.find(o => o.id === osId || o.public_tracking_token === osId);
     if (!os) return;
 
     const pid = paymentId || `mp_pay_${Date.now()}`;
-    const client = clients.find(c => c.id === os.client_id);
+    const client = clients.find(c => c.id === os.client_id) || (os as any).client;
     const today = new Date().toISOString().split('T')[0];
 
-    // Atualiza status da OS
+    // Atualiza status da OS para Finalizado, Faturada e Aprovada
     updateServiceOrder(os.id, {
       status: 'finalizado',
       invoiced: true,
@@ -1053,7 +1070,7 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!existingTx) {
       const newTx: FinancialTransaction = {
         id: 'fin-mp-' + Date.now(),
-        description: `Recebimento Checkout Pro OS #${os.os_number} - ${client?.name || 'Cliente'} (ID MP: ${pid})`,
+        description: `Recebimento Fatura OS #${os.os_number} - ${client?.name || 'Cliente'} (ID MP: ${pid})`,
         type: 'receita',
         category: 'Mercado Pago Checkout Pro',
         client_id: os.client_id,
@@ -1080,6 +1097,23 @@ export const AppStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     addAuditLog('Mercado Pago', 'Pagamento Aprovado', `Pagamento da OS #${os.os_number} aprovado via Mercado Pago (${paymentMethod.toUpperCase()}). Transação: ${pid}`);
+
+    // Sincroniza silenciosamente com Supabase se conectado
+    try {
+      const clientSb = getSupabaseClient(supabaseConfig.url, supabaseConfig.anonKey);
+      if (clientSb) {
+        clientSb.from('service_orders')
+          .update({
+            status: 'finalizado',
+            invoiced: true,
+            mp_payment_id: pid,
+            mp_payment_status: 'approved',
+            updated_at: new Date().toISOString(),
+          })
+          .or(`id.eq.${os.id},public_tracking_token.eq.${os.public_tracking_token}`)
+          .then(() => {}, () => {});
+      }
+    } catch (e) {}
   };
 
   const resetAllData = () => {

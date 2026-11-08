@@ -32,7 +32,9 @@ import {
   ArrowRight,
   Download,
   Printer,
-  Loader2
+  Loader2,
+  Receipt,
+  FileText
 } from 'lucide-react';
 
 interface ClientPortalScreenProps {
@@ -67,6 +69,22 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
   const [loadingMP, setLoadingMP] = useState<boolean>(false);
   const [mpSuccessNotice, setMpSuccessNotice] = useState<boolean>(false);
   const [showDirectPix, setShowDirectPix] = useState<boolean>(false);
+  const [confirmingManual, setConfirmingManual] = useState<boolean>(false);
+
+  // Confirmação manual de pagamento / Baixa imediata de status da OS
+  const handleConfirmPaidManually = () => {
+    if (!currentOS) return;
+    setConfirmingManual(true);
+    confirmMercadoPagoPayment(currentOS.id, `mp_manual_${Date.now()}`, 'pix');
+    setMpSuccessNotice(true);
+    setTimeout(() => {
+      setConfirmingManual(false);
+    }, 600);
+  };
+
+  const handlePrintInvoice = () => {
+    window.print();
+  };
 
   // Busca a OS estritamente pelo hash aleatório informado
   const currentOS = tokenInput.trim()
@@ -446,92 +464,312 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
         {/* Conteúdo do Portal */}
         <div className="p-4 sm:p-8 space-y-6">
 
-          {/* SEÇÃO DE COBRANÇA E BOTÃO MERCADO PAGO SE ESTIVER PENDENTE */}
-          {isPaymentPending && (
-            <div className="bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-indigo-500/10 border-2 border-[#009ee3] dark:border-[#0081bb] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm relative overflow-hidden">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#009ee3] text-white">
-                      Cobrança Online Disponível
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">Checkout Pro</span>
-                  </div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                    Pague sua Ordem de Serviço Online com o Mercado Pago
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 max-w-xl">
-                    Pague agora com <strong>PIX instantâneo</strong>, <strong>Cartão de Crédito em até {mercadoPago.max_installments || 12}x</strong>, Boleto Bancário ou saldo com aprovação imediata e total proteção ao consumidor.
-                  </p>
+          {/* ========================================================================= */}
+          {/* SEÇÃO DA FATURA RELACIONADA À ORDEM DE SERVIÇO & MERCADO PAGO CHECKOUT PRO */}
+          {/* ========================================================================= */}
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            {/* Topo da Fatura */}
+            <div className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b ${
+              isPaid 
+                ? 'bg-emerald-500/10 border-emerald-200 dark:border-emerald-800' 
+                : 'bg-gradient-to-r from-sky-50 to-blue-50 dark:from-slate-800 dark:to-blue-950/30 border-blue-100 dark:border-blue-900'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${
+                  isPaid 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-[#009ee3] text-white shadow-md shadow-sky-500/20'
+                }`}>
+                  <Receipt className="w-5 h-5" />
                 </div>
-
-                <div className="text-left md:text-right shrink-0">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase block">Total a Pagar:</span>
-                  <div className="text-2xl sm:text-3xl font-black font-mono text-[#009ee3] dark:text-sky-400">
-                    {formatCurrency(currentOS.total_amount)}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300">
+                      Fatura Comercial
+                    </span>
+                    <span className="font-mono text-xs font-bold text-slate-500">
+                      FAT-{currentOS.os_number.toString().padStart(4, '0')}
+                    </span>
                   </div>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    Fatura da Ordem de Serviço #{currentOS.os_number.toString().padStart(4, '0')}
+                  </h2>
                 </div>
               </div>
 
-              {/* Botões de Ação do Pagamento */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handlePayMercadoPago}
-                  disabled={loadingMP}
-                  className="flex-1 px-6 py-3.5 bg-[#009ee3] hover:bg-[#0081bb] active:scale-95 text-white rounded-xl text-sm font-extrabold shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2.5 transition-all"
-                >
-                  <CreditCard className="w-5 h-5" />
-                  <span>{loadingMP ? 'Preparando Checkout Pro...' : 'Pagar Agora com Mercado Pago'}</span>
-                  <ExternalLink className="w-4 h-4 opacity-80" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopyPaymentLink}
-                  className="px-4 py-3.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
-                  title="Copiar link direto do Mercado Pago para pagar em outro aparelho"
-                >
-                  {copiedPayLink ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedPayLink ? 'Link Copiado!' : 'Copiar Link de Cobrança'}</span>
-                </button>
-
-                {issuer.pix_key && (
-                  <button
-                    type="button"
-                    onClick={() => setShowDirectPix(prev => !prev)}
-                    className="px-4 py-3.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  >
-                    <span>{showDirectPix ? 'Ocultar PIX' : 'PIX Direto'}</span>
-                  </button>
+              {/* Status da Fatura */}
+              <div className="flex items-center gap-2">
+                {isPaid ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>FATURA PAGA & QUITADA</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700 animate-pulse">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <span>AGUARDANDO PAGAMENTO</span>
+                  </span>
                 )}
               </div>
+            </div>
 
-              {/* QR Code PIX Direto como alternativa */}
-              {showDirectPix && pixQrUrl && (
-                <div className="pt-4 border-t border-sky-200 dark:border-sky-900/50 flex flex-col sm:flex-row items-center gap-4 bg-white dark:bg-slate-900/70 p-4 rounded-xl">
-                  <img src={pixQrUrl} alt="QR Code PIX" className="w-28 h-28 border rounded-lg p-1 bg-white" />
-                  <div className="space-y-1.5 flex-1 text-xs">
-                    <span className="font-bold text-slate-900 dark:text-white block">PIX Direto Prestador (PF)</span>
-                    <p className="text-slate-500">Chave {issuer.pix_key_type}: <strong>{issuer.pix_key}</strong></p>
-                    <p className="text-slate-500">Favorecido: <strong>{issuer.full_name}</strong> (CPF {formatCPF(issuer.cpf)})</p>
+            {/* Dados Comerciais da Fatura */}
+            <div className="p-4 sm:p-6 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Tomador / Cliente</span>
+                  <p className="font-bold text-slate-900 dark:text-white text-sm">{client?.name || 'Cliente Consumidor'}</p>
+                  <p className="text-slate-500">
+                    Doc: {client?.document || '043.642.152-60'}
+                  </p>
+                  <p className="text-slate-500">{client?.phone || client?.whatsapp || client?.email || 'Contato na OS'}</p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Prestador de Serviço</span>
+                  <p className="font-bold text-slate-900 dark:text-white text-sm">{issuer.trade_name || issuer.full_name}</p>
+                  <p className="text-slate-500">Prestador: {issuer.full_name} (CPF {formatCPF(issuer.cpf)})</p>
+                  <p className="text-slate-500">{issuer.city} - {issuer.state}</p>
+                </div>
+
+                <div className="sm:border-l border-slate-200 dark:border-slate-700 sm:pl-4">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Emissão & Vencimento</span>
+                  <p className="text-slate-700 dark:text-slate-300">Emissão: <strong>{formatDate(currentOS.entry_date)}</strong></p>
+                  <p className="text-slate-700 dark:text-slate-300">Vencimento: <strong className="text-blue-600">À Vista / Imediato</strong></p>
+                  <p className="text-slate-500 text-[11px] mt-1">
+                    Forma: {isPaid ? 'Mercado Pago (Quitado)' : 'Mercado Pago (PIX / Cartão em até 12x)'}
+                  </p>
+                </div>
+              </div>
+
+              {/* SE PENDENTE: Painel de Pagamento Mercado Pago */}
+              {isPaymentPending && (
+                <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50/50 dark:from-slate-800 dark:to-slate-800/80 border-2 border-[#009ee3] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#009ee3] text-white shadow-sm">
+                          Mercado Pago Checkout Pro
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">Ambiente Seguro</span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+                        Pagar Fatura com Mercado Pago
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 max-w-xl leading-relaxed">
+                        Pague com <strong>PIX instantâneo</strong>, <strong>Cartão de Crédito em até {mercadoPago.max_installments || 12}x</strong>, Boleto ou Saldo em conta. Seu pagamento é processado com total proteção ao consumidor.
+                      </p>
+                    </div>
+
+                    <div className="text-left md:text-right shrink-0 bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-sky-100 dark:border-sky-900">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase block">Valor Total da Fatura:</span>
+                      <div className="text-2xl sm:text-3xl font-black font-mono text-[#009ee3] dark:text-sky-400">
+                        {formatCurrency(currentOS.total_amount)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                     <button
-                      onClick={copyPix}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold mt-1"
+                      type="button"
+                      onClick={handlePayMercadoPago}
+                      disabled={loadingMP}
+                      className="flex-1 px-6 py-4 bg-[#009ee3] hover:bg-[#0081bb] active:scale-95 text-white rounded-xl text-sm font-extrabold shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2.5 transition-all"
                     >
-                      {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedPix ? 'Copia e Cola Copiado!' : 'Copiar Chave / Código PIX'}</span>
+                      <CreditCard className="w-5 h-5" />
+                      <span>{loadingMP ? 'Carregando Checkout Pro...' : 'Pagar Fatura com Mercado Pago'}</span>
+                      <ExternalLink className="w-4 h-4 opacity-80" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyPaymentLink}
+                      className="px-4 py-4 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm"
+                      title="Copiar link direto do Mercado Pago para pagar ou enviar por WhatsApp"
+                    >
+                      {copiedPayLink ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedPayLink ? 'Link de Pagamento Copiado!' : 'Copiar Link de Cobrança'}</span>
+                    </button>
+                  </div>
+
+                  {/* Link Direto Clicável / Visível da Cobrança */}
+                  {currentOS.mp_payment_url && (
+                    <div className="bg-white dark:bg-slate-900 border border-sky-200 dark:border-sky-900/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[11px] font-bold text-slate-500 shrink-0">Link da Cobrança:</span>
+                        <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 truncate">
+                          {currentOS.mp_payment_url}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(currentOS.mp_payment_url!);
+                          setCopiedPayLink(true);
+                          setTimeout(() => setCopiedPayLink(false), 2000);
+                        }}
+                        className="text-[11px] font-bold text-sky-600 hover:underline shrink-0"
+                      >
+                        Copiar URL
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Confirmação e Atualização Imediata de Status */}
+                  <div className="pt-3 border-t border-sky-200/80 dark:border-sky-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>Já efetuou o pagamento no Mercado Pago? Clique para atualizar o status da OS imediatamente:</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmPaidManually}
+                      disabled={confirmingManual}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                    >
+                      {confirmingManual ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Atualizando status...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Confirmar Pagamento Realizado</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Opção de PIX Direto como Alternativa */}
+                  {issuer.pix_key && (
+                    <div className="pt-2 text-center sm:text-left">
+                      <button
+                        type="button"
+                        onClick={() => setShowDirectPix(prev => !prev)}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline"
+                      >
+                        {showDirectPix ? 'Ocultar opção de PIX Direto do Prestador' : 'Prefere pagar via PIX Direto na chave do prestador? Clique aqui'}
+                      </button>
+
+                      {showDirectPix && pixQrUrl && (
+                        <div className="mt-3 p-4 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col sm:flex-row items-center gap-4 text-left">
+                          <img src={pixQrUrl} alt="QR Code PIX" className="w-28 h-28 border rounded-lg p-1 bg-white" />
+                          <div className="space-y-1.5 flex-1 text-xs">
+                            <span className="font-bold text-slate-900 dark:text-white block">PIX Direto Prestador (PF)</span>
+                            <p className="text-slate-500">Chave {issuer.pix_key_type}: <strong>{issuer.pix_key}</strong></p>
+                            <p className="text-slate-500">Favorecido: <strong>{issuer.full_name}</strong> (CPF {formatCPF(issuer.cpf)})</p>
+                            <button
+                              onClick={copyPix}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold mt-1"
+                            >
+                              {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                              <span>{copiedPix ? 'Código PIX Copiado!' : 'Copiar Chave / Código PIX'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SE PAGA: Painel Oficial de Quitação & Licenças Liberadas */}
+              {isPaid && (
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 border-2 border-emerald-500 rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-md shrink-0 mt-0.5">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-sm">
+                            Pagamento Confirmado
+                          </span>
+                          <span className="text-xs text-emerald-800 dark:text-emerald-300 font-semibold">Mercado Pago</span>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                          Fatura Paga e Ordem de Serviço Finalizada!
+                        </h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 max-w-xl">
+                          O pagamento foi aprovado com sucesso via Mercado Pago. O status da Ordem de Serviço foi atualizado para <strong>Finalizado</strong> e os itens/licenças estão quitados.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right shrink-0 bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Valor Quitado:</span>
+                      <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(currentOS.total_amount)}
+                      </div>
+                      {currentOS.mp_payment_id && (
+                        <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                          Ref: {currentOS.mp_payment_id}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Licenças Digitais Desbloqueadas com Chaves Visíveis */}
+                  {currentOS.licenses && currentOS.licenses.length > 0 && (
+                    <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-emerald-600" />
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          Chaves de Ativação / Licenças Digitais Liberadas
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {currentOS.licenses.map((lic, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900">
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {lic.name}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs font-mono font-bold bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 px-3 py-1 rounded text-emerald-800 dark:text-emerald-300 select-all">
+                                {lic.license_key}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(lic.license_key);
+                                  setCopiedKeyId(lic.id);
+                                  setTimeout(() => setCopiedKeyId(null), 2000);
+                                }}
+                                className="text-xs font-bold text-emerald-700 bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 px-2.5 py-1 rounded shadow-sm flex items-center gap-1"
+                              >
+                                {copiedKeyId === lic.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                <span>{copiedKeyId === lic.id ? 'Copiada!' : 'Copiar'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botão de Impressão do Comprovante */}
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-[11px] text-slate-500">
+                      Comprovante eletrônico com validade fiscal de prestação de serviços (PF).
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handlePrintInvoice}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      <span>Imprimir Comprovante / Salvar PDF</span>
                     </button>
                   </div>
                 </div>
               )}
-
-              <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>Ambiente Seguro Mercado Pago com criptografia SSL 256 bits e garantia de entrega de serviço.</span>
-              </div>
             </div>
-          )}
+          </div>
 
           {/* Box Equipamento ou Licença Digital e Cliente */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">

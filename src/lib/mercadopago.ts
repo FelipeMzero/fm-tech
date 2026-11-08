@@ -1,4 +1,5 @@
 import { ServiceOrder, Client, MercadoPagoSettings, MercadoPagoPreference } from './types';
+import { encodeOSSharePayload } from './utils';
 
 export interface PreferenceResult {
   success: boolean;
@@ -167,12 +168,14 @@ export async function createMercadoPagoPreference(
   const token = settings?.access_token?.trim();
   const isSandbox = settings?.sandbox ?? true;
 
-  // Monta URLs de retorno para o link público da OS
+  // Monta URLs de retorno para o link público da OS (inclui o payload da OS para recuperação garantida no retorno)
   const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+  const encodedPayload = encodeOSSharePayload(os, client);
+  const dParam = encodedPayload ? `&d=${encodedPayload}` : '';
   const backUrls = {
-    success: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=approved`,
-    pending: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=pending`,
-    failure: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=failure`,
+    success: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=approved${dParam}`,
+    pending: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=pending${dParam}`,
+    failure: `${baseUrl}/#/os/${os.public_tracking_token}?mp_status=failure${dParam}`,
   };
 
   const amount = Number(os.total_amount) || 0;
