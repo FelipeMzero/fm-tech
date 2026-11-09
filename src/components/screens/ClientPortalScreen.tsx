@@ -12,6 +12,7 @@ import {
   getTokenFromUrl
 } from '../../lib/utils';
 import { getSupabaseClient } from '../../lib/supabaseClient';
+import { OSPrintA4Modal } from '../os/OSPrintA4Modal';
 import { 
   CheckCircle2, 
   Clock, 
@@ -111,8 +112,10 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
     }, 600);
   };
 
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+
   const handlePrintInvoice = () => {
-    window.print();
+    setShowPrintModal(true);
   };
 
   // Busca a OS estritamente pelo hash aleatório informado
@@ -1043,6 +1046,14 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal de Impressão A4 Oficial da OS */}
+      {showPrintModal && currentOS && (
+        <OSPrintA4Modal
+          os={currentOS}
+          onClose={() => setShowPrintModal(false)}
+        />
+      )}
     </div>
   );
 };
