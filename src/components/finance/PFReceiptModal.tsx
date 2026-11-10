@@ -1,5 +1,4 @@
-import React, { useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React from 'react';
 import { FinancialTransaction } from '../../lib/types';
 import { useAppStore } from '../../lib/store';
 import { 
@@ -20,13 +19,6 @@ export const PFReceiptModal: React.FC<PFReceiptModalProps> = ({ transaction, onC
   const { issuer, clients } = useAppStore();
   const client = clients.find(c => c.id === transaction.client_id);
 
-  useEffect(() => {
-    document.body.classList.add('has-print-modal');
-    return () => {
-      document.body.classList.remove('has-print-modal');
-    };
-  }, []);
-
   const handlePrint = () => {
     window.print();
   };
@@ -38,9 +30,9 @@ export const PFReceiptModal: React.FC<PFReceiptModalProps> = ({ transaction, onC
   ];
   const dateFormattedFull = `${issuer.city || 'São Paulo'}, ${today.getDate()} de ${months[today.getMonth()]} de ${today.getFullYear()}`;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto print-modal-container">
-      <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-3xl rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col max-h-[92vh] print-modal-box">
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-3xl rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col max-h-[92vh]">
         {/* Barra Superior */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-xl no-print">
           <div className="flex items-center gap-2">
@@ -69,8 +61,8 @@ export const PFReceiptModal: React.FC<PFReceiptModalProps> = ({ transaction, onC
         </div>
 
         {/* Folha do Recibo */}
-        <div className="p-8 overflow-y-auto bg-slate-200 dark:bg-slate-950 flex-1 flex justify-center print-modal-body print:p-0 print:bg-white print:overflow-visible">
-          <div className="bg-white text-black p-8 rounded shadow border border-slate-300 max-w-2xl w-full text-xs leading-relaxed space-y-6 print-a4-page print:border-none print:shadow-none print:p-0">
+        <div className="p-8 overflow-y-auto bg-slate-200 dark:bg-slate-950 flex-1 flex justify-center">
+          <div className="bg-white text-black p-8 rounded shadow border border-slate-300 max-w-2xl w-full text-xs leading-relaxed space-y-6 print:border-none print:shadow-none print:p-0">
             {/* Topo do Recibo */}
             <div className="flex items-center justify-between border-b-2 border-slate-800 pb-3">
               <div>
@@ -144,7 +136,6 @@ export const PFReceiptModal: React.FC<PFReceiptModalProps> = ({ transaction, onC
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { ServiceOrder } from '../../lib/types';
 import { useAppStore } from '../../lib/store';
 import { 
@@ -10,7 +9,6 @@ import {
   formatPhone, 
   formatCEP, 
   formatDocument,
-  generateQRCodeDataUrl,
   OS_STATUS_DETAILS 
 } from '../../lib/utils';
 import { Printer, X, FileText, Download, Layers, ShieldCheck, CheckCircle2 } from 'lucide-react';
@@ -23,22 +21,6 @@ interface OSPrintA4ModalProps {
 export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) => {
   const { issuer, clients, warrantyTerms, transactions } = useAppStore();
   const [twoCopies, setTwoCopies] = useState<boolean>(false);
-  const [trackingQrUrl, setTrackingQrUrl] = useState<string>('');
-
-  useEffect(() => {
-    document.body.classList.add('has-print-modal');
-    return () => {
-      document.body.classList.remove('has-print-modal');
-    };
-  }, []);
-
-  useEffect(() => {
-    if (os.public_tracking_token) {
-      const baseUrl = (window.location.origin + window.location.pathname).replace(/\/$/, '');
-      const url = `${baseUrl}/#/os/${os.public_tracking_token}`;
-      generateQRCodeDataUrl(url).then(setTrackingQrUrl);
-    }
-  }, [os.public_tracking_token]);
 
   const client = clients.find(c => c.id === os.client_id) || os.client;
   const warranty = warrantyTerms.find(w => w.id === os.warranty_term_id) || os.warranty_term;
@@ -104,26 +86,18 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
             )}
           </div>
 
-          <div className="flex items-start justify-between">
-            <div className="space-y-0.5">
-              <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-1 mb-1">
-                Controle e Prazos
-              </div>
-              <p><strong>Data de Entrada:</strong> {formatDateTime(os.entry_date)}</p>
-              <p><strong>Previsão de Entrega:</strong> {formatDate(os.estimated_delivery_date)}</p>
-              {os.completion_date && (
-                <p><strong>Data de Conclusão:</strong> {formatDate(os.completion_date)}</p>
-              )}
-              <p className="font-mono text-[10px] text-slate-600">
-                <strong>Token:</strong> {os.public_tracking_token}
-              </p>
+          <div>
+            <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-1 mb-1">
+              Controle e Prazos
             </div>
-            {trackingQrUrl && (
-              <div className="flex flex-col items-center ml-2 shrink-0">
-                <img src={trackingQrUrl} alt="QR Code Rastreio" className="w-14 h-14 border border-slate-200 p-0.5 rounded bg-white shadow-xs" />
-                <span className="text-[8px] text-slate-500 font-semibold mt-0.5 uppercase tracking-tighter">Rastreio Celular</span>
-              </div>
+            <p><strong>Data de Entrada:</strong> {formatDateTime(os.entry_date)}</p>
+            <p><strong>Previsão de Entrega:</strong> {formatDate(os.estimated_delivery_date)}</p>
+            {os.completion_date && (
+              <p><strong>Data de Conclusão:</strong> {formatDate(os.completion_date)}</p>
             )}
+            <p className="font-mono text-[10px] text-slate-600 truncate">
+              <strong>Token de Controle:</strong> {os.public_tracking_token}
+            </p>
           </div>
         </div>
 
@@ -349,9 +323,9 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
     );
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto print-modal-container">
-      <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-4xl max-h-[92vh] flex flex-col rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800 print-modal-box">
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-4xl max-h-[92vh] flex flex-col rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800">
         {/* Barra Superior com Controles */}
         <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-xl gap-3 no-print">
           <div className="flex items-center gap-2">
@@ -416,25 +390,20 @@ export const OSPrintA4Modal: React.FC<OSPrintA4ModalProps> = ({ os, onClose }) =
         </div>
 
         {/* Área de Impressão */}
-        <div className="p-6 overflow-y-auto space-y-8 bg-slate-200 dark:bg-slate-950 flex-1 print-modal-body print:p-0 print:bg-white print:overflow-visible">
+        <div className="p-6 overflow-y-auto space-y-8 bg-slate-200 dark:bg-slate-950 flex-1">
           {twoCopies ? (
-            <div className="space-y-8 print:space-y-0">
-              <div className="print-page-break">
-                {renderSingleVia('1ª Via - Via da Oficina / Técnico')}
-              </div>
+            <div className="space-y-8">
+              {renderSingleVia('1ª Via - Via da Oficina / Técnico')}
               <div className="border-t-2 border-dashed border-slate-400 my-4 text-center text-[10px] font-mono text-slate-500 uppercase tracking-widest no-print">
                 -- Destacar Aqui --
               </div>
-              <div>
-                {renderSingleVia('2ª Via - Via do Cliente')}
-              </div>
+              {renderSingleVia('2ª Via - Via do Cliente')}
             </div>
           ) : (
             renderSingleVia('Via Única / Completa')
           )}
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };

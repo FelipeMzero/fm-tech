@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { ServiceOrder } from '../../lib/types';
 import { useAppStore } from '../../lib/store';
 import { 
@@ -20,13 +19,6 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
   const { issuer, clients } = useAppStore();
   const [paperWidth, setPaperWidth] = useState<'80mm' | '58mm'>('80mm');
 
-  useEffect(() => {
-    document.body.classList.add('has-print-modal');
-    return () => {
-      document.body.classList.remove('has-print-modal');
-    };
-  }, []);
-
   const client = clients.find(c => c.id === os.client_id) || os.client;
 
   const handlePrint = () => {
@@ -40,9 +32,9 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
 
   const is58mm = paperWidth === '58mm';
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto print-modal-container">
-      <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col max-h-[92vh] print-modal-box">
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-slate-100 dark:bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col max-h-[92vh]">
         {/* Header de Ações */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-xl no-print">
           <div className="flex items-center gap-2">
@@ -86,10 +78,10 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
         </div>
 
         {/* Visualizador do Cupom Térmico */}
-        <div className="p-6 overflow-y-auto flex justify-center bg-slate-200 dark:bg-slate-950 flex-1 thermal-receipt-container print-modal-body print:p-0 print:bg-white print:overflow-visible">
+        <div className="p-6 overflow-y-auto flex justify-center bg-slate-200 dark:bg-slate-950 flex-1">
           <div
-            className={`bg-white text-black p-4 shadow-md font-mono text-xs leading-tight space-y-3 thermal-receipt ${
-              is58mm ? 'w-[58mm] text-[10px] thermal-receipt-58' : 'w-[80mm] text-[11px] thermal-receipt-80'
+            className={`bg-white text-black p-4 shadow-md font-mono text-xs leading-tight space-y-3 ${
+              is58mm ? 'w-[58mm] text-[10px]' : 'w-[80mm] text-[11px]'
             }`}
           >
             {/* Cabeçalho */}
@@ -208,7 +200,6 @@ export const OSPrintThermalModal: React.FC<OSPrintThermalModalProps> = ({ os, on
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
