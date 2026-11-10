@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore } from '../../lib/store';
 import { Product, PaymentMethod } from '../../lib/types';
 import { formatCurrency, formatCPF, formatDateTime, formatPhone } from '../../lib/utils';
@@ -32,6 +33,17 @@ export const POSScreen: React.FC = () => {
 
   // Venda recém-finalizada para exibir recibo
   const [lastSaleReceipt, setLastSaleReceipt] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (lastSaleReceipt) {
+      document.body.classList.add('has-print-modal');
+    } else {
+      document.body.classList.remove('has-print-modal');
+    }
+    return () => {
+      document.body.classList.remove('has-print-modal');
+    };
+  }, [lastSaleReceipt]);
 
   // Produtos filtrados
   const filteredProducts = products.filter(p => {
@@ -358,9 +370,9 @@ export const POSScreen: React.FC = () => {
       </div>
 
       {/* Recibo da Venda em Modal */}
-      {lastSaleReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border max-w-sm w-full space-y-4">
+      {lastSaleReceipt && createPortal(
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 print-modal-container">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border max-w-sm w-full space-y-4 print-modal-box">
             <div className="text-center border-b pb-3 space-y-1">
               <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                 Venda Concluída com Sucesso!
@@ -380,7 +392,7 @@ export const POSScreen: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 no-print">
               <button
                 onClick={() => window.print()}
                 className="flex-1 py-2 bg-blue-600 text-white font-semibold rounded text-xs flex items-center justify-center gap-1"
@@ -395,7 +407,8 @@ export const POSScreen: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

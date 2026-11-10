@@ -69,11 +69,24 @@
     margin: 0 !important;
     padding: 0 !important;
     background-color: #ffffff !important;
+    background: #ffffff !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 100% !important;
   }
   
+  /* REGRA CHAVE: Quando um modal de impressão estiver ativo, oculta 100% a tela de fundo (#root) */
+  body.has-print-modal #root,
+  body:has(.print-modal-container) #root {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
   .no-print {
     display: none !important;
   }
@@ -91,6 +104,46 @@
     display: none !important;
   }
 
+  /* Reseta os containers do Modal de Impressão para fluxo limpo de página */
+  .print-modal-container {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    box-shadow: none !important;
+    border: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .print-modal-box {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    display: block !important;
+  }
+
+  .print-modal-body {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
   /* Estilização para folha A4 com margens internas limpas */
   .print-a4-page {
     padding: 10mm 12mm !important;
@@ -102,6 +155,9 @@
     color: #0f172a !important;
     font-size: 11px !important;
     line-height: 1.35 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   .print-a4-page * {
@@ -114,13 +170,42 @@
     page-break-inside: avoid !important;
   }
 
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
   /* Estilização para cupom de bobina térmica */
+  .thermal-receipt-container {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
   .thermal-receipt {
-    width: 78mm !important;
     margin: 0 auto !important;
-    padding: 4mm 2mm !important;
+    padding: 3mm 1mm !important;
     font-family: 'Courier New', Courier, monospace !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .thermal-receipt-80 {
+    width: 78mm !important;
+    max-width: 78mm !important;
     font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  .thermal-receipt-58 {
+    width: 56mm !important;
+    max-width: 56mm !important;
+    font-size: 10px !important;
     line-height: 1.2 !important;
   }
 }
